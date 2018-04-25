@@ -43,3 +43,13 @@ Mean AP = 0.5366
 
 #pva-mobilenet-v2 model:
 url: https://pan.baidu.com/s/1Cl4MXiU7otkB6bxGIOLxwg
+
+ohem Introduction:
+
+This implemention is using rfcn ohem way train voc dataset, base work is pvanet, following papers:
+1. https://arxiv.org/abs/1506.01497
+2. https://www.arxiv.org/pdf/1608.08021v3.pdf
+3. https://arxiv.org/abs/1605.06409
+
+train data 110 thousand iterations
+Mean AP = 0.7498
