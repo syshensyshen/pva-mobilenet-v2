@@ -9,7 +9,7 @@ namespace caffe {
 	// Set to three for the benefit of the backward pass, which
 	// can use separate streams for calculating the gradient w.r.t.
 	// bias, filter weights, and bottom data for each group independently
-#define CUDNN_STREAMS_PER_GROUP 3
+#define CUDNN_STREAMS_PER_GROUP 1
 
 	//template <typename Dtype>
 	//void CuDNNDeconvolutionLayer<Dtype>::compute_output_shape() {
@@ -28,14 +28,15 @@ namespace caffe {
 	//	}
 	//}
 
-/**
- * TODO(dox) explain cuDNN interface
- */
+	/**
+	* TODO(dox) explain cuDNN interface
+	*/
 	template<typename Dtype>
 	void CuDNNDeconvolutionLayer<Dtype>::LayerSetUp(
 		const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
 		DeconvolutionLayer<Dtype>::LayerSetUp(bottom, top);
 		// Initialize CUDA streams and cuDNN.
+
 		stream_         = new cudaStream_t[this->group_ * CUDNN_STREAMS_PER_GROUP];
         handle_         = new cudnnHandle_t[this->group_ * CUDNN_STREAMS_PER_GROUP];
 
@@ -52,7 +53,7 @@ namespace caffe {
 		// workspace data
 		workspaceSizeInBytes = 0;
 		workspaceData = NULL;
-		workspace = new void*[this->group_ * CUDNN_STREAMS_PER_GROUP];
+		workspace = new void*[this->channels_ / this->group_ * CUDNN_STREAMS_PER_GROUP];
 
 		for (size_t i = 0; i < bottom.size(); ++i) {
 			// initialize all to default algorithms
@@ -65,7 +66,7 @@ namespace caffe {
 			workspace_bwd_filter_sizes_[i] = 0;
 		}
 
-		for (int g = 0; g < this->group_ * CUDNN_STREAMS_PER_GROUP; g++) {
+		for (int g = 0; g < this->channels_ / this->group_ * CUDNN_STREAMS_PER_GROUP; g++) {
 			CUDA_CHECK(cudaStreamCreate(&stream_[g]));
 			CUDNN_CHECK(cudnnCreate(&handle_[g]));
 			CUDNN_CHECK(cudnnSetStream(handle_[g], stream_[g]));
@@ -130,22 +131,40 @@ namespace caffe {
 		size_t workspace_limit_bytes = 8 * 1024 * 1024;
 
 		for (int i = 0; i < bottom.size(); i++) {
+			/*cudnn::setTensor4dDesc<Dtype>(&bottom_descs_[i],
+			this->num_,
+			this->channels_ / this->group_, height, width,
+			this->channels_ * height * width,
+			height * width, width, 1);*/
 			cudnn::setTensor4dDesc<Dtype>(&bottom_descs_[i],
-				this->num_,
-				this->channels_ / this->group_, height, width,
-				this->channels_ * height * width,
-				height * width, width, 1);
+				this->num_ * this->group_, // batch
+				this->channels_ / this->group_, // channels
+				height, // height
+				width, // width
+				this->channels_ / this->group_ * height * width, // stride n
+				height * width, //stride c
+				width, //stride h
+				1); // stride w
+					/*cudnn::setTensor4dDesc<Dtype>(&top_descs_[i],
+					this->num_,
+					this->num_output_ / this->group_, height_out, width_out,
+					this->num_output_ * this->out_spatial_dim_,
+					this->out_spatial_dim_, width_out, 1);*/
 			cudnn::setTensor4dDesc<Dtype>(&top_descs_[i],
-				this->num_,
-				this->num_output_ / this->group_, height_out, width_out,
-				this->num_output_ * this->out_spatial_dim_,
-				this->out_spatial_dim_, width_out, 1);
+				this->num_ * this->group_,
+				this->num_output_ / this->group_,
+				height_out,
+				width_out,
+				this->num_output_ / this->group_ * this->out_spatial_dim_, // num_output_ kernel num, out_spatial_dim_ = c * h * w
+				this->out_spatial_dim_,
+				width_out,
+				1);
 			cudnn::setConvolutionDesc<Dtype>(&conv_descs_[i], bottom_descs_[i],
 				filter_desc_, pad_h, pad_w,
 				stride_h, stride_w);
 
 			// choose forward and backward algorithms + workspace(s)
-			CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm(handle_[0],
+			CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm(handle_,
 				top_descs_[i]/*bottom_descs_[i]*/,
 				filter_desc_,
 				conv_descs_[i],
@@ -154,7 +173,7 @@ namespace caffe {
 				workspace_limit_bytes,
 				&fwd_algo_[i]));
 
-			CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(handle_[0],
+			CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(handle_,
 				top_descs_[i]/*bottom_descs_[i]*/,
 				filter_desc_,
 				conv_descs_[i],
@@ -163,24 +182,24 @@ namespace caffe {
 				&(workspace_fwd_sizes_[i])));
 
 			// choose backward algorithm for filter
-			CUDNN_CHECK(cudnnGetConvolutionBackwardFilterAlgorithm(handle_[0],
+			CUDNN_CHECK(cudnnGetConvolutionBackwardFilterAlgorithm(handle_,
 				top_descs_[i]/*bottom_descs_[i]*/, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], filter_desc_,
 				CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT,
 				workspace_limit_bytes, &bwd_filter_algo_[i]));
 
 			// get workspace for backwards filter algorithm
-			CUDNN_CHECK(cudnnGetConvolutionBackwardFilterWorkspaceSize(handle_[0],
+			CUDNN_CHECK(cudnnGetConvolutionBackwardFilterWorkspaceSize(handle_,
 				top_descs_[i]/*bottom_descs_[i]*/, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], filter_desc_,
 				bwd_filter_algo_[i], &workspace_bwd_filter_sizes_[i]));
 
 			// choose backward algo for data
-			CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm(handle_[0],
+			CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm(handle_,
 				filter_desc_, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], top_descs_[i]/*bottom_descs_[i]*/,
 				CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT,
 				workspace_limit_bytes, &bwd_data_algo_[i]));
 
 			// get workspace size
-			CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(handle_[0],
+			CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(handle_,
 				filter_desc_, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], top_descs_[i]/*bottom_descs_[i]*/,
 				bwd_data_algo_[i], &workspace_bwd_data_sizes_[i]));
 		}
@@ -227,7 +246,7 @@ namespace caffe {
 				}
 
 				// NULL out all workspace pointers
-				for (int g = 0; g < (this->group_ * CUDNN_STREAMS_PER_GROUP); g++) {
+				for (int g = 0; g < (this->channels_ / this->group_ * CUDNN_STREAMS_PER_GROUP); g++) {
 					workspace[g] = NULL;
 				}
 				// NULL out underlying data
@@ -236,7 +255,7 @@ namespace caffe {
 			}
 
 			// if we succeed in the allocation, set pointer aliases for workspaces
-			for (int g = 0; g < (this->group_ * CUDNN_STREAMS_PER_GROUP); g++) {
+			for (int g = 0; g < (this->channels_ / this->group_ * CUDNN_STREAMS_PER_GROUP); g++) {
 				workspace[g] = reinterpret_cast<char *>(workspaceData) + g*max_workspace;
 			}
 		}
