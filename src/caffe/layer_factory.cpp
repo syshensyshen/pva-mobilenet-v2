@@ -119,6 +119,39 @@ REGISTER_LAYER_CREATOR(Deconvolution, GetDeConvolutionLayer);
 
 #endif // USE_CUDNN_DECONV
 
+#ifdef USE_CUDNN_BATCH_NORM
+
+template <typename Dtype>
+shared_ptr<Layer<Dtype> > GetBatchNormLayer(
+	const LayerParameter& param) {
+	BatchNormParameter param = param.batch_norm_param();
+	BatchNormParameter_Engine engine = param.engine();
+
+	if (engine == BatchNormParameter_Engine_DEFAULT) {
+		engine = BatchNormParameter_Engine_CAFFE;
+	}
+	if (engine == ConvolutionParameter_Engine_CAFFE) {
+		return shared_ptr<Layer<Dtype> >(new BatchNormLayer<Dtype>(param));
+#ifdef USE_CUDNN
+	}
+	else if (engine == BatchNormParameter_Engine_CUDNN) {
+		if (use_dilation) {
+			LOG(FATAL) << "CuDNN doesn't support the dilated convolution at Layer "
+				<< param.name();
+		}
+		return shared_ptr<Layer<Dtype> >(new CuDNNBatchNormLayer<Dtype>(param));
+#endif
+	}
+	else {
+		LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
+		throw;  // Avoids missing return warning
+	}
+}
+
+REGISTER_LAYER_CREATOR(BatchNorm, GetBatchNormLayer);
+
+#endif // USE_CUDNN_DECONV
+
 
 // Get pooling layer according to engine.
 template <typename Dtype>
