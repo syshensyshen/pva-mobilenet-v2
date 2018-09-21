@@ -26,6 +26,7 @@
 #include "caffe/layers/cudnn_softmax_layer.hpp"
 #include "caffe/layers/cudnn_tanh_layer.hpp"
 #include "caffe/layers/cudnn_deconv_layer.hpp"
+#include "caffe/layers/cudnn_batch_norm_layer.hpp"
 #endif
 
 #ifdef WITH_PYTHON_LAYER
@@ -124,24 +125,20 @@ REGISTER_LAYER_CREATOR(Deconvolution, GetDeConvolutionLayer);
 template <typename Dtype>
 shared_ptr<Layer<Dtype> > GetBatchNormLayer(
 	const LayerParameter& param) {
-	BatchNormParameter param = param.batch_norm_param();
-	BatchNormParameter_Engine engine = param.engine();
+	BatchNormParameter batch_param = param.batch_norm_param();
+	BatchNormParameter_Engine engine = batch_param.engine();
 
 	if (engine == BatchNormParameter_Engine_DEFAULT) {
 		engine = BatchNormParameter_Engine_CAFFE;
 	}
-	if (engine == ConvolutionParameter_Engine_CAFFE) {
+	if (engine == BatchNormParameter_Engine_CAFFE) {
 		return shared_ptr<Layer<Dtype> >(new BatchNormLayer<Dtype>(param));
 #ifdef USE_CUDNN
 	}
 	else if (engine == BatchNormParameter_Engine_CUDNN) {
-		if (use_dilation) {
-			LOG(FATAL) << "CuDNN doesn't support the dilated convolution at Layer "
-				<< param.name();
-		}
 		return shared_ptr<Layer<Dtype> >(new CuDNNBatchNormLayer<Dtype>(param));
-#endif
 	}
+#endif
 	else {
 		LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
 		throw;  // Avoids missing return warning

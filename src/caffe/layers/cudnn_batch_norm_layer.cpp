@@ -9,17 +9,16 @@ namespace caffe {
 	void CuDNNBatchNormLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
 		BatchNormLayer<Dtype>::LayerSetUp(bottom, top);
-		handle_ = CuDNNBatchNormLayer::layer_cudnn_handle_;
-		stream_ = CuDNNBatchNormLayer::layer_cuda_stream_;
-		//CUDNN_CHECK(cudnnCreate(&handle_));
-		//CUDA_CHECK(cudaStreamCreate(&stream_));
+		
+		CUDNN_CHECK(cudnnCreate(&handle_));
+		CUDA_CHECK(cudaStreamCreate(&stream_));
 		int N = bottom[0]->num();
 		int C = bottom[0]->channels();
 		int H = bottom[0]->height();
 		int W = bottom[0]->width();
-		createTensor4dDesc<Dtype>(&bottom_desc_);
-		createTensor4dDesc<Dtype>(&top_desc_);
-		createTensor4dDesc<Dtype>(&scale_bias_mean_var_desc_);
+		cudnn::createTensor4dDesc<Dtype>(&bottom_desc_);
+		cudnn::createTensor4dDesc<Dtype>(&top_desc_);
+		cudnn::createTensor4dDesc<Dtype>(&scale_bias_mean_var_desc_);
 
 #if CUDNN_VERSION_MIN(7, 2, 0)
 		mode_ = CUDNN_BATCHNORM_SPATIAL_PERSISTENT;
@@ -61,22 +60,27 @@ namespace caffe {
 				caffe_set(bias_zeros_.count(), Dtype(0.0f), bias_zeros_.mutable_cpu_data());
 			}
 		}
-		CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, map_desc_, mode_));
-		/*CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, bottom_desc_, mode_));*/
+		CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, bottom_desc_, mode_));
+		CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, top_desc_, mode_));
 		
 
 	}
 
 	template <typename Dtype>
 	CuDNNBatchNormLayer<Dtype>::~CuDNNBatchNormLayer() {
-		/*if (handles_setup_) {
+		if (handles_setup_) {
 			CUDNN_CHECK(cudnnDestroy(handle_));
 			CUDA_CHECK(cudaStreamDestroy(&stream));
-		}*/
+		}
 		CUDNN_CHECK(cudnnDestroyTensorDescriptor(bottom_desc_));
 		CUDNN_CHECK(cudnnDestroyTensorDescriptor(top_desc_));
 		CUDNN_CHECK(cudnnDestroyTensorDescriptor(scale_bias_mean_var_desc_));
 	}
+
+	INSTANTIATE_CLASS(CuDNNBatchNormLayer);
+#ifndef USE_CUDNN_BATCH_NORM
+	REGISTER_LAYER_CLASS(CuDNNBatchNorm);
+#endif
 
 }
 

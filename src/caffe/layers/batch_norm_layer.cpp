@@ -19,6 +19,7 @@ namespace caffe {
 		else
 			channels_ = bottom[0]->shape(1);
 		eps_ = param.eps();
+		eps_ = std::min(eps_, CUDNN_BN_MIN_EPSILON);
 		scale_bias_ = false;
 		scale_bias_ = param.scale_bias(); // by default = false;
 		if (param.has_scale_filler() || param.has_bias_filler()) { // implicit set
