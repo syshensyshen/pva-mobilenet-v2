@@ -27,6 +27,7 @@
 #include "caffe/layers/cudnn_tanh_layer.hpp"
 #include "caffe/layers/cudnn_deconv_layer.hpp"
 #include "caffe/layers/cudnn_batch_norm_layer.hpp"
+#include "caffe/layers/cudnn_depthwise_convolution.hpp"
 #endif
 
 #ifdef WITH_PYTHON_LAYER
@@ -148,6 +149,51 @@ shared_ptr<Layer<Dtype> > GetBatchNormLayer(
 REGISTER_LAYER_CREATOR(BatchNorm, GetBatchNormLayer);
 
 #endif // USE_CUDNN_DECONV
+
+#ifdef USE_CUDNN_DEPTHWISE_CONV
+// Get convolution layer according to engine.
+template <typename Dtype>
+shared_ptr<Layer<Dtype> > GetDepthwiseConvolutionLayer(
+	const LayerParameter& param) {
+	ConvolutionParameter conv_param = param.convolution_param();
+	ConvolutionParameter_Engine engine = conv_param.engine();
+#ifdef USE_CUDNN
+	bool use_dilation = false;
+	for (int i = 0; i < conv_param.dilation_size(); ++i) {
+		if (conv_param.dilation(i) > 1) {
+			use_dilation = true;
+		}
+	}
+#endif
+	if (engine == ConvolutionParameter_Engine_DEFAULT) {
+		engine = ConvolutionParameter_Engine_CAFFE;
+#ifdef USE_CUDNN
+		if (!use_dilation) {
+			engine = ConvolutionParameter_Engine_CUDNN;
+		}
+#endif
+	}
+	if (engine == ConvolutionParameter_Engine_CAFFE) {
+		return shared_ptr<Layer<Dtype> >(new DepthwiseConvolutionLayer<Dtype>(param));
+#ifdef USE_CUDNN
+	}
+	else if (engine == ConvolutionParameter_Engine_CUDNN) {
+		if (use_dilation) {
+			LOG(FATAL) << "CuDNN doesn't support the dilated convolution at Layer "
+				<< param.name();
+		}
+		return shared_ptr<Layer<Dtype> >(new CuDNNDepthwiseConvolutionLayer<Dtype>(param));
+#endif
+	}
+	else {
+		LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
+		throw;  // Avoids missing return warning
+	}
+}
+
+REGISTER_LAYER_CREATOR(DepthwiseConvolution, GetDepthwiseConvolutionLayer);
+
+#endif
 
 
 // Get pooling layer according to engine.
