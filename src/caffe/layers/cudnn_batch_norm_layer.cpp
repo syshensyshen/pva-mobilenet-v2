@@ -11,7 +11,7 @@ namespace caffe {
 		BatchNormLayer<Dtype>::LayerSetUp(bottom, top);
 		
 		CUDNN_CHECK(cudnnCreate(&handle_));
-		CUDA_CHECK(cudaStreamCreate(&stream_));
+		//CUDA_CHECK(cudaStreamCreate(&stream_));
 		int N = bottom[0]->num();
 		int C = bottom[0]->channels();
 		int H = bottom[0]->height();
@@ -20,7 +20,7 @@ namespace caffe {
 		cudnn::createTensor4dDesc<Dtype>(&top_desc_);
 		cudnn::createTensor4dDesc<Dtype>(&scale_bias_mean_var_desc_);
 
-#if CUDNN_VERSION_MIN(7, 2, 0)
+#if CUDNN_VERSION_MIN(7, 0, 0)
 		mode_ = CUDNN_BATCHNORM_SPATIAL_PERSISTENT;
 #else
 		mode_ = CUDNN_BATCHNORM_SPATIAL;
@@ -70,7 +70,7 @@ namespace caffe {
 	CuDNNBatchNormLayer<Dtype>::~CuDNNBatchNormLayer() {
 		if (handles_setup_) {
 			CUDNN_CHECK(cudnnDestroy(handle_));
-			CUDA_CHECK(cudaStreamDestroy(&stream));
+			//CUDA_CHECK(cudaStreamDestroy(&stream));
 		}
 		CUDNN_CHECK(cudnnDestroyTensorDescriptor(bottom_desc_));
 		CUDNN_CHECK(cudnnDestroyTensorDescriptor(top_desc_));

@@ -35,8 +35,9 @@ namespace caffe {
 				temp_NCHW_.mutable_gpu_data());
 			caffe_gpu_mul<Dtype>(top_size, top_data, temp_NCHW_.gpu_data(), top_data);
 		}
-		else {  // if (this->phase_ == TRAIN)
-				// temp = EX
+		else {  
+			// if (this->phase_ == TRAIN)
+			// temp = EX
 			compute_mean_per_channel_gpu<Dtype>(N, C, S, bottom_data,
 				mean_.mutable_gpu_data());
 			multicast_gpu<Dtype>(N, C, S, mean_.gpu_data(),
@@ -64,11 +65,14 @@ namespace caffe {
 
 			//  update global mean and variance
 			if (iter_ > 1) {
-				caffe_gpu_axpby<Dtype>(C, Dtype(1. - moving_average_fraction_),
-					mean_.gpu_data(), Dtype(moving_average_fraction_),
+				if (use_global_stats_) {
+					moving_average_fraction_ = Dtype(0.0);
+				}
+				caffe_gpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+					mean_.gpu_data(), moving_average_fraction_,
 					this->blobs_[0]->mutable_gpu_data());
-				caffe_gpu_axpby<Dtype>(C, Dtype((1. - moving_average_fraction_)),
-					var_.gpu_data(), Dtype(moving_average_fraction_),
+				caffe_gpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+					var_.gpu_data(), moving_average_fraction_,
 					this->blobs_[1]->mutable_gpu_data());
 			}
 			else {

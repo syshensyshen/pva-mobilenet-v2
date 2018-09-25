@@ -19,7 +19,9 @@ namespace caffe {
 		else
 			channels_ = bottom[0]->shape(1);
 		eps_ = param.eps();
-		eps_ = std::min(eps_, CUDNN_BN_MIN_EPSILON);
+		if (eps_ > CUDNN_BN_MIN_EPSILON) {
+			eps_ = CUDNN_BN_MIN_EPSILON;
+		}
 		scale_bias_ = false;
 		scale_bias_ = param.scale_bias(); // by default = false;
 		if (param.has_scale_filler() || param.has_bias_filler()) { // implicit set
@@ -195,11 +197,14 @@ namespace caffe {
 			// clip variance
 			//  update global mean and variance
 			if (iter_ > 1) {
-				caffe_cpu_axpby<Dtype>(C, Dtype(1. - moving_average_fraction_),
-					mean_.cpu_data(), Dtype(moving_average_fraction_),
+				if (use_global_stats_)	{
+					moving_average_fraction_ = Dtype(0.0);
+				}
+				caffe_cpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+					mean_.cpu_data(), moving_average_fraction_,
 					this->blobs_[0]->mutable_cpu_data());
-				caffe_cpu_axpby<Dtype>(C, Dtype(1. - moving_average_fraction_),
-					var_.cpu_data(), Dtype(moving_average_fraction_),
+				caffe_cpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+					var_.cpu_data(), moving_average_fraction_,
 					this->blobs_[1]->mutable_cpu_data());
 			}
 			else {
