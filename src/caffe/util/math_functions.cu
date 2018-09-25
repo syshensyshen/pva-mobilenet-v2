@@ -10,6 +10,38 @@
 
 namespace caffe {
 
+template<typename Dtype>
+__global__ void square_kernel(const int n, const Dtype* a, Dtype* y) {
+  CUDA_KERNEL_LOOP(index, n) {
+    y[index] = a[index] * a[index];
+  }
+}
+
+template<typename Dtype>
+__global__ void mul_kernel(const int n, const Dtype* a, const Dtype* b, Dtype* y) {
+  CUDA_KERNEL_LOOP(index, n) {
+    y[index] = a[index] * b[index];
+  }
+}
+
+template<>
+void caffe_gpu_square<float>(const int N, const float* a, float* y) {
+  //cudaStream_t stream = Caffe::thread_stream();
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  square_kernel<<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(N, a, y);
+  //CUDA_POST_KERNEL_CHECK;
+  //CUDA_CHECK(cudaStreamSynchronize(stream));
+}
+
+template<>
+void caffe_gpu_square<double>(const int N, const double* a, double* y) {
+  //cudaStream_t stream = Caffe::thread_stream();
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  square_kernel<<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(N, a, y);
+  //CUDA_POST_KERNEL_CHECK;
+ // CUDA_CHECK(cudaStreamSynchronize(stream));
+}
+
 template <>
 void caffe_gpu_gemm<float>(const CBLAS_TRANSPOSE TransA,
     const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
@@ -88,26 +120,6 @@ void caffe_gpu_scal<float>(const int N, const float alpha, float *X) {
 template <>
 void caffe_gpu_scal<double>(const int N, const double alpha, double *X) {
   CUBLAS_CHECK(cublasDscal(Caffe::cublas_handle(), N, &alpha, X, 1));
-}
-
-template <>
-void caffe_gpu_scal<float>(const int N, const float alpha, float* X,
-                           cudaStream_t str) {
-  cudaStream_t initial_stream;
-  CUBLAS_CHECK(cublasGetStream(Caffe::cublas_handle(), &initial_stream));
-  CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), str));
-  CUBLAS_CHECK(cublasSscal(Caffe::cublas_handle(), N, &alpha, X, 1));
-  CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), initial_stream));
-}
-
-template <>
-void caffe_gpu_scal<double>(const int N, const double alpha, double* X,
-                            cudaStream_t str) {
-  cudaStream_t initial_stream;
-  CUBLAS_CHECK(cublasGetStream(Caffe::cublas_handle(), &initial_stream));
-  CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), str));
-  CUBLAS_CHECK(cublasDscal(Caffe::cublas_handle(), N, &alpha, X, 1));
-  CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), initial_stream));
 }
 
 template <>
@@ -261,14 +273,6 @@ void caffe_gpu_sub<double>(const int N, const double* a, const double* b,
       N, a, b, y);
 }
 
-template <typename Dtype>
-__global__ void mul_kernel(const int n, const Dtype* a,
-    const Dtype* b, Dtype* y) {
-  CUDA_KERNEL_LOOP(index, n) {
-    y[index] = a[index] * b[index];
-  }
-}
-
 template <>
 void caffe_gpu_mul<float>(const int N, const float* a,
     const float* b, float* y) {
@@ -397,27 +401,6 @@ void caffe_gpu_powx<double>(const int N, const double* a,
       N, a, alpha, y);
 }
 
-template <typename Dtype>
-__global__ void sqrt_kernel(const int n, const Dtype* a, Dtype* y) {
-  CUDA_KERNEL_LOOP(index, n) {
-    y[index] = sqrt(a[index]);
-  }
-}
-
-template <>
-void caffe_gpu_sqrt<float>(const int N, const float* a, float* y) {
-  // NOLINT_NEXT_LINE(whitespace/operators)
-  sqrt_kernel<float><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
-      N, a, y);
-}
-
-template <>
-void caffe_gpu_sqrt<double>(const int N, const double* a, double* y) {
-  // NOLINT_NEXT_LINE(whitespace/operators)
-  sqrt_kernel<double><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
-      N, a, y);
-}
-
 DEFINE_AND_INSTANTIATE_GPU_UNARY_FUNC(sign, y[index] = (Dtype(0) < x[index])
                                       - (x[index] < Dtype(0)));
 DEFINE_AND_INSTANTIATE_GPU_UNARY_FUNC(sgnbit, y[index] = signbit(x[index]));
@@ -467,3 +450,4 @@ void caffe_gpu_rng_gaussian(const int n, const double mu, const double sigma,
 }
 
 }  // namespace caffe
+

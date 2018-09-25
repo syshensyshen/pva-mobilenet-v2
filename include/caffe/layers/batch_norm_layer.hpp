@@ -61,7 +61,6 @@ class BatchNormLayer : public Layer<Dtype> {
      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
   // multicast x[c] into y[.,c,...]
-  template <typename Dtype>
   void multicast_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
 	  caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
 		  ones_N_.gpu_data(), x, Dtype(0.),
@@ -71,7 +70,6 @@ class BatchNormLayer : public Layer<Dtype> {
   }
 
   // y[c] = sum x(.,c,...)
-  template <typename Dtype>
   void compute_sum_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
 	  caffe_gpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
 		  ones_HW_.gpu_data(),
@@ -81,7 +79,6 @@ class BatchNormLayer : public Layer<Dtype> {
   }
 
   // y[c] = mean x(.,c,...)
-  template <typename Dtype>
   void compute_mean_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
 	  Dtype F = 1. / (N * S);
 	  compute_sum_per_channel_gpu(N, C, S, x, y);
@@ -89,7 +86,6 @@ class BatchNormLayer : public Layer<Dtype> {
   }
 
   //  multicast x[c] into y[.,c,...]
-  template <typename Dtype>
   void multicast_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
 	  caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
 		  ones_N_.cpu_data(), x, Dtype(0.),
@@ -100,7 +96,6 @@ class BatchNormLayer : public Layer<Dtype> {
   }
 
   //  y[c] = sum x(.,c,...)
-  template <typename Dtype>
   void compute_sum_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
 	  caffe_cpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
 		  ones_HW_.cpu_data(), Dtype(0.),
@@ -110,7 +105,6 @@ class BatchNormLayer : public Layer<Dtype> {
   }
 
   // y[c] = mean x(.,c,...)
-  template <typename Dtype>
   void compute_mean_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
 	  Dtype F = 1. / (N * S);
 	  compute_sum_per_channel_cpu(N, C, S, x, y);

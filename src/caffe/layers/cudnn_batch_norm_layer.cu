@@ -14,7 +14,9 @@ namespace caffe {
 		const vector<Blob<Dtype>*>& top) {
 
 		const Dtype *bottom_data = bottom[0]->gpu_data();
-		Dtype *top_data = top[0]->mutable_gpu_data();
+                Dtype* top_data = top[0] == bottom[0] ?
+			private_top_.mutable_gpu_data() : top[0]->mutable_gpu_data();
+		//Dtype *top_data = top[0]->mutable_gpu_data();
 
 		const Dtype *scale_data;
 		const Dtype *bias_data;
@@ -23,7 +25,7 @@ namespace caffe {
 		Dtype *save_mean;
 		Dtype *save_inv_var;
 
-		if (this->phase_ == TRAIN && !use_global_stats_) {
+		if (this->phase_ == TRAIN) {
 			global_mean = this->blobs_[0]->mutable_gpu_data();
 			global_var = this->blobs_[1]->mutable_gpu_data();
 			save_mean = save_mean_.mutable_gpu_data();
@@ -44,7 +46,7 @@ namespace caffe {
 
 		if (this->phase_ == TRAIN ) {
 			Dtype factor = 1. - this->moving_average_fraction_;
-			if (use_global_stats_) {
+			if (this->use_global_stats_) {
 				factor = 0;
 			}
 			CUDNN_CHECK(cudnnBatchNormalizationForwardTraining(handle_, mode_,
@@ -65,6 +67,10 @@ namespace caffe {
 			LOG(FATAL) << "Unknown phase";
 		}
 		//CUDA_CHECK(cudaStreamSynchronize(Caffe::thread_stream()));
+		if (top[0] == bottom[0]) {
+			private_bottom_.CopyFrom(*bottom[0]);
+			top[0]->CopyFrom(private_top_);
+		}
 	}
 
 
@@ -74,7 +80,9 @@ namespace caffe {
 
 		const Dtype *top_diff = top[0]->gpu_diff();
 		Dtype * bottom_diff = bottom[0]->mutable_gpu_diff();
-		const Dtype *bottom_data = bottom[0]->gpu_data();
+                const Dtype* bottom_data = top[0] == bottom[0] ?
+			private_bottom_.gpu_data() : bottom[0]->gpu_data();
+		//const Dtype *bottom_data = bottom[0]->gpu_data();
 		double epsilon = this->eps_;
 		const Dtype* save_mean;
 		const Dtype* save_inv_var;
@@ -94,6 +102,12 @@ namespace caffe {
 			scale_diff = scale_ones_.mutable_gpu_diff();
 			bias_diff = bias_zeros_.mutable_gpu_diff();
 		}
+		
+	    if (top[0] == bottom[0]) {
+           // copy diff from top to private_top
+           private_top_.CopyFrom(*top[0], true);
+           top_diff = private_top_.gpu_diff();
+        }
 
 		CUDNN_CHECK(cudnnBatchNormalizationBackward(handle_, mode_,
 			cudnn::dataType<Dtype>::one, cudnn::dataType<Dtype>::zero,

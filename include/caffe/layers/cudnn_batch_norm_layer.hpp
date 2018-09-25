@@ -43,6 +43,9 @@ namespace caffe {
 
 		Blob<Dtype> scale_ones_;
 		Blob<Dtype> bias_zeros_;
+		
+		Blob<Dtype> private_top_;
+        Blob<Dtype> private_bottom_;
 
 	};
 

@@ -78,24 +78,20 @@ namespace caffe {
 		for (int i = 0; i < 3; ++i) {
 			if (this->layer_param_.param_size() == i) {
 				ParamSpec* fixed_param_spec = this->layer_param_.add_param();
-				fixed_param_spec->set_lr_mult(0.f);
-				/*} else {
-				CHECK_EQ(this->layer_param_.param(i).lr_mult(), 0.f)
-				<< "Cannot configure batch normalization statistics as layer "
-				<< "parameters.";
-				}*/
+				fixed_param_spec->set_lr_mult(0.f);				
 			}
 		}
-		//if (scale_bias_) {
-		//	for (int i = 3; i < 5; ++i) {
-		//		if (this->layer_param_.param_size() == i) {
-		//			this->layer_param_.add_param();
-		//		}
-		//		//set lr and decay = 1 for scale and bias
-		//		this->layer_param_.mutable_param(i)->set_lr_mult(1.f);
-		//		this->layer_param_.mutable_param(i)->set_decay_mult(1.f);
-		//	}
-		//}
+		
+	    if (scale_bias_) {
+			for (int i = 3; i < 5; ++i) {
+				if (this->layer_param_.param_size() == i) {
+					this->layer_param_.add_param();
+				}
+				//set lr and decay = 1 for scale and bias
+				this->layer_param_.mutable_param(i)->set_lr_mult(1.f);
+				this->layer_param_.mutable_param(i)->set_decay_mult(1.f);
+			}
+		}
 	}
 
 	template <typename Dtype>
@@ -117,17 +113,17 @@ namespace caffe {
 		inv_var_.Reshape(shape_c);
 		temp_C_.Reshape(shape_c);
 		vector<int> shape_n;
-		shape_n[0] = N;
+		shape_n.push_back(N);
 		ones_N_.Reshape(shape_n);
-		caffe_set(ones_N_.count(), Dtype(0.0),
+		caffe_set(ones_N_.count(), Dtype(1.0),
 			ones_N_.mutable_cpu_data());
 		ones_C_.Reshape(shape_c);
-		caffe_set(ones_C_.count(), Dtype(0.0),
+		caffe_set(ones_C_.count(), Dtype(1.0),
 			ones_C_.mutable_cpu_data());
 		vector<int> shape_hw;
 		shape_hw.push_back(H*W);
 		ones_HW_.Reshape(shape_hw);
-		caffe_set(ones_HW_.count(), Dtype(0.0),
+		caffe_set(ones_HW_.count(), Dtype(1.0),
 			ones_HW_.mutable_cpu_data());
 		vector<int> shape_nc;
 		shape_nc.push_back(N*C);
@@ -154,7 +150,7 @@ namespace caffe {
 				caffe_copy(top_size, bottom_data, top_data);
 			}
 			//  Y = X- EX
-			multicast_cpu<Dtype>(N, C, S, global_mean, temp_NCHW_.mutable_cpu_data());
+			multicast_cpu(N, C, S, global_mean, temp_NCHW_.mutable_cpu_data());
 			caffe_axpy<Dtype>(top_size, Dtype(-1.), temp_NCHW_.mutable_cpu_data(),
 				top_data);
 			//  inv_var = (eps + var)^(-0.5)
@@ -163,14 +159,14 @@ namespace caffe {
 			caffe_powx<Dtype>(C, var_.cpu_data(), Dtype(-0.5),
 				inv_var_.mutable_cpu_data());
 			//  X_norm = (X-EX) * inv_var
-			multicast_cpu<Dtype>(N, C, S, inv_var_.cpu_data(),
+			multicast_cpu(N, C, S, inv_var_.cpu_data(),
 				temp_NCHW_.mutable_cpu_data());
 			caffe_mul<Dtype>(top_size, top_data, temp_NCHW_.cpu_data(), top_data);
 		}
 		else {
-			compute_mean_per_channel_cpu<Dtype>(N, C, S, bottom_data,
+			compute_mean_per_channel_cpu(N, C, S, bottom_data,
 				mean_.mutable_cpu_data());
-			multicast_cpu<Dtype>(N, C, S, mean_.mutable_cpu_data(),
+			multicast_cpu(N, C, S, mean_.mutable_cpu_data(),
 				temp_NCHW_.mutable_cpu_data());
 			//  Y = X- EX
 			if (bottom[0] != top[0]) {
@@ -181,14 +177,14 @@ namespace caffe {
 			// compute variance E (X-EX)^2
 			caffe_powx<Dtype>(top_size, top_data, Dtype(2.),
 				temp_NCHW_.mutable_cpu_data());
-			compute_mean_per_channel_cpu<Dtype>(N, C, S, temp_NCHW_.mutable_cpu_data(),
+			compute_mean_per_channel_cpu(N, C, S, temp_NCHW_.mutable_cpu_data(),
 				var_.mutable_cpu_data());
 			//  inv_var= ( eps+ variance)^(-0.5)
 			caffe_add_scalar<Dtype>(C, Dtype(eps_), var_.mutable_cpu_data());
 			caffe_powx<Dtype>(C, var_.cpu_data(), Dtype(-0.5),
 				inv_var_.mutable_cpu_data());
 			// X_norm = (X-EX) * inv_var
-			multicast_cpu<Dtype>(N, C, S, inv_var_.cpu_data(),
+			multicast_cpu(N, C, S, inv_var_.cpu_data(),
 				temp_NCHW_.mutable_cpu_data());
 			caffe_mul<Dtype>(top_size, top_data, temp_NCHW_.cpu_data(), top_data);
 			// copy top to x_norm for backward
@@ -220,12 +216,12 @@ namespace caffe {
 		if (scale_bias_) {
 			// Y = X_norm * scale[c]
 			//const Blob& scale_data = *(this->blobs_[3]);
-			multicast_cpu<Dtype>(N, C, S, this->blobs_[3]->cpu_data(),
+			multicast_cpu(N, C, S, this->blobs_[3]->cpu_data(),
 				temp_NCHW_.mutable_cpu_data());
 			caffe_mul<Dtype>(top_size, top_data, temp_NCHW_.cpu_data(), top_data);
 			// Y = Y + shift[c]
 			//const Blob& shift_data = *(this->blobs_[4]);
-			multicast_cpu<Dtype>(N, C, S, this->blobs_[4]->cpu_data(),
+			multicast_cpu(N, C, S, this->blobs_[4]->cpu_data(),
 				temp_NCHW_.mutable_cpu_data());
 			caffe_add<Dtype>(top_size, top_data, temp_NCHW_.mutable_cpu_data(), top_data);
 		}
@@ -247,7 +243,7 @@ namespace caffe {
 			Dtype* scale_diff = this->blobs_[3]->mutable_cpu_diff();
 			caffe_mul<Dtype>(top_size, top_diff, x_norm_.cpu_data(),
 				temp_NCHW_.mutable_cpu_diff());
-			compute_sum_per_channel_cpu<Dtype>(N, C, S, temp_NCHW_.cpu_diff(), scale_diff);
+			compute_sum_per_channel_cpu(N, C, S, temp_NCHW_.cpu_diff(), scale_diff);
 			// shift_diff: dE/d(shift) = sum (dE/dY)
 			Dtype* shift_diff = this->blobs_[4]->mutable_cpu_diff();
 			compute_sum_per_channel_cpu(N, C, S, top_diff, shift_diff);
@@ -255,7 +251,7 @@ namespace caffe {
 			// --  STAGE 2: backprop dE/d(x_norm) = dE/dY .* scale ------------
 			// dE/d(X_norm) = dE/dY * scale[c]
 			const Dtype* scale_data = this->blobs_[3]->cpu_data();
-			multicast_cpu<Dtype>(N, C, S, scale_data, temp_NCHW_.mutable_cpu_data());
+			multicast_cpu(N, C, S, scale_data, temp_NCHW_.mutable_cpu_data());
 			caffe_mul<Dtype>(top_size, top_diff, temp_NCHW_.cpu_data(),
 				x_norm_.mutable_cpu_diff());
 			top_diff = x_norm_.cpu_diff();
@@ -274,23 +270,23 @@ namespace caffe {
 
 		// temp = mean(dE/dY .* Y)
 		caffe_mul<Dtype>(top_size, top_diff, top_data, temp_NCHW_.mutable_cpu_diff());
-		compute_mean_per_channel_cpu<Dtype>(N, C, S, temp_NCHW_.cpu_diff(),
+		compute_mean_per_channel_cpu(N, C, S, temp_NCHW_.cpu_diff(),
 			temp_C_.mutable_cpu_diff());
-		multicast_cpu<Dtype>(N, C, S, temp_C_.cpu_diff(),
+		multicast_cpu(N, C, S, temp_C_.cpu_diff(),
 			temp_NCHW_.mutable_cpu_diff());
 		// bottom = mean(dE/dY .* Y) .* Y
 		caffe_mul(top_size, temp_NCHW_.cpu_diff(), top_data, bottom_diff);
 		// temp = mean(dE/dY)
-		compute_mean_per_channel_cpu<Dtype>(N, C, S, top_diff,
+		compute_mean_per_channel_cpu(N, C, S, top_diff,
 			temp_C_.mutable_cpu_diff());
-		multicast_cpu<Dtype>(N, C, S, temp_C_.cpu_diff(),
+		multicast_cpu(N, C, S, temp_C_.cpu_diff(),
 			temp_NCHW_.mutable_cpu_diff());
 		// bottom = mean(dE/dY) + mean(dE/dY .* Y) .* Y
 		caffe_add(top_size, temp_NCHW_.cpu_diff(), bottom_diff, bottom_diff);
 		// bottom = dE/dY - mean(dE/dY)-mean(dE/dY \cdot Y) \cdot Y
 		caffe_cpu_axpby(top_size, Dtype(1.), top_diff, Dtype(-1.), bottom_diff);
 		// dE/dX = dE/dX ./ sqrt(var(X) + eps)
-		multicast_cpu<Dtype>(N, C, S, inv_var_.cpu_data(),
+		multicast_cpu(N, C, S, inv_var_.cpu_data(),
 			temp_NCHW_.mutable_cpu_data());
 		caffe_mul(top_size, bottom_diff, temp_NCHW_.cpu_data(), bottom_diff);
 	}
@@ -301,7 +297,7 @@ namespace caffe {
 #endif
 
 	INSTANTIATE_CLASS(BatchNormLayer);
-#ifndef USE_CUDNN_BATCH_NORM
-	REGISTER_LAYER_CLASS(BatchNorm);
-#endif
+//#ifndef USE_CUDNN_BATCH_NORM
+	//REGISTER_LAYER_CLASS(BatchNorm);
+//#endif
 }  // namespace caffe

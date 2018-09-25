@@ -12,10 +12,10 @@ namespace caffe {
 		
 		CUDNN_CHECK(cudnnCreate(&handle_));
 		//CUDA_CHECK(cudaStreamCreate(&stream_));
-		int N = bottom[0]->num();
+		//int N = bottom[0]->num();
 		int C = bottom[0]->channels();
-		int H = bottom[0]->height();
-		int W = bottom[0]->width();
+		//int H = bottom[0]->height();
+		//int W = bottom[0]->width();
 		cudnn::createTensor4dDesc<Dtype>(&bottom_desc_);
 		cudnn::createTensor4dDesc<Dtype>(&top_desc_);
 		cudnn::createTensor4dDesc<Dtype>(&scale_bias_mean_var_desc_);
@@ -31,10 +31,14 @@ namespace caffe {
 			scale_ones_.Reshape(shape);
 			caffe_set(scale_ones_.count(), Dtype(1.0), scale_ones_.mutable_cpu_data());
 			bias_zeros_.Reshape(shape);
-			caffe_set(bias_zeros_.count(), Dtype(1.0), scale_ones_.mutable_cpu_data());
+			caffe_set(bias_zeros_.count(), Dtype(0.0), bias_zeros_.mutable_cpu_data());
 		}
 		save_mean_.Reshape(shape);
 		save_inv_var_.Reshape(shape);
+		if (bottom[0] == top[0]) {
+			private_top_.ReshapeLike(*top[0]);
+			private_bottom_.ReshapeLike(*bottom[0]);
+		}
 		handles_setup_ = true;
 	}
 
@@ -61,7 +65,7 @@ namespace caffe {
 			}
 		}
 		CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, bottom_desc_, mode_));
-		CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, top_desc_, mode_));
+		//CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, top_desc_, mode_));
 		
 
 	}
@@ -78,9 +82,9 @@ namespace caffe {
 	}
 
 	INSTANTIATE_CLASS(CuDNNBatchNormLayer);
-#ifndef USE_CUDNN_BATCH_NORM
+//#ifndef USE_CUDNN_BATCH_NORM
 	REGISTER_LAYER_CLASS(CuDNNBatchNorm);
-#endif
+//#endif
 
 }
 
