@@ -88,8 +88,13 @@ namespace caffe {
 					this->layer_param_.add_param();
 				}
 				//set lr and decay = 1 for scale and bias
-				this->layer_param_.mutable_param(i)->set_lr_mult(1.f);
-				this->layer_param_.mutable_param(i)->set_decay_mult(1.f);
+				if (use_global_stats_) {
+				    this->layer_param_.mutable_param(i)->set_lr_mult(0.0f);
+				    this->layer_param_.mutable_param(i)->set_decay_mult(0.0f);
+				} else {
+					this->layer_param_.mutable_param(i)->set_lr_mult(1.f);
+				    this->layer_param_.mutable_param(i)->set_decay_mult(1.f);
+				}
 			}
 		}
 	}
