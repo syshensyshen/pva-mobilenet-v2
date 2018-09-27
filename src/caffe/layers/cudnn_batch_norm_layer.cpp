@@ -8,6 +8,11 @@ namespace caffe {
 	template <typename Dtype>
 	void CuDNNBatchNormLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
+		//LOG(INFO) << "########################################### cuda batch ";
+		//LOG(INFO) << "########################################### " << bottom[0]->num();
+		//LOG(INFO) << "########################################### " << bottom[0]->channels();
+		//LOG(INFO) << "########################################### " << bottom[0]->height();
+		//LOG(INFO) << "########################################### " << bottom[0]->width();
 		BatchNormLayer<Dtype>::LayerSetUp(bottom, top);
 		
 		CUDNN_CHECK(cudnnCreate(&handle_));
@@ -40,6 +45,11 @@ namespace caffe {
 			private_bottom_.ReshapeLike(*bottom[0]);
 		}
 		handles_setup_ = true;
+		//LOG(INFO) << "########################################### cudnn batch ";
+		//LOG(INFO) << "########################################### " << bottom[0]->num();
+		//LOG(INFO) << "########################################### " << bottom[0]->channels();
+		//LOG(INFO) << "########################################### " << bottom[0]->height();
+		//LOG(INFO) << "########################################### " << bottom[0]->width();
 	}
 
 	template <typename Dtype>
@@ -66,6 +76,15 @@ namespace caffe {
 		}
 		CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, bottom_desc_, mode_));
 		//CUDNN_CHECK(cudnnDeriveBNTensorDescriptor(scale_bias_mean_var_desc_, top_desc_, mode_));
+		//LOG(INFO) << "########################################### cudnn batch ";
+		//LOG(INFO) << "########################################### " << bottom[0]->num();
+		//LOG(INFO) << "########################################### " << bottom[0]->channels();
+		//LOG(INFO) << "########################################### " << bottom[0]->height();
+		//LOG(INFO) << "########################################### " << bottom[0]->width();
+		//LOG(INFO) << "########################################### " << top[0]->num();
+		//LOG(INFO) << "########################################### " << top[0]->channels();
+		//LOG(INFO) << "########################################### " << top[0]->height();
+		//LOG(INFO) << "########################################### " << top[0]->width();
 		
 
 	}
@@ -83,7 +102,7 @@ namespace caffe {
 
 	INSTANTIATE_CLASS(CuDNNBatchNormLayer);
 //#ifndef USE_CUDNN_BATCH_NORM
-	REGISTER_LAYER_CLASS(CuDNNBatchNorm);
+	//REGISTER_LAYER_CLASS(CuDNNBatchNorm);
 //#endif
 
 }

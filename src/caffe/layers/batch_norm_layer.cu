@@ -21,7 +21,7 @@ namespace caffe {
 		const Dtype* global_mean = this->blobs_[0]->gpu_data();
 		const Dtype* global_var = this->blobs_[1]->gpu_data();
 
-		if (this->phase_ == TEST || use_global_stats_) {
+		if (this->phase_ == TEST) {
 			//  Y = X- EX
 			multicast_gpu(N, C, S, global_mean, temp_NCHW_.mutable_gpu_data());
 			caffe_gpu_sub<Dtype>(top_size, bottom_data, temp_NCHW_.gpu_data(), top_data);
@@ -102,9 +102,9 @@ namespace caffe {
 	void BatchNormLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
 		const vector<bool>& propagate_down,
 		const vector<Blob<Dtype>*>& bottom) {
-		int N = bottom[0]->shape(0);
+		int N = bottom[0]->num();
 		int C = channels_;
-		int S = bottom[0]->count(0) / (N * C);
+		int HW = bottom[0]->count(0) / (N * C);
 		int top_size = top[0]->count();
 
 		const Dtype* top_diff = top[0]->gpu_diff();
@@ -114,15 +114,15 @@ namespace caffe {
 			Dtype* scale_diff = this->blobs_[3]->mutable_gpu_diff();
 			caffe_gpu_mul<Dtype>(top_size, top_diff, x_norm_.gpu_data(),
 				temp_NCHW_.mutable_gpu_diff());
-			compute_sum_per_channel_gpu(N, C, S, temp_NCHW_.gpu_diff(), scale_diff);
+			compute_sum_per_channel_gpu(N, C, HW, temp_NCHW_.gpu_diff(), scale_diff);
 			//  shift_diff: dE/d(shift) = sum (dE/dY)
 			Dtype* shift_diff = this->blobs_[4]->mutable_gpu_diff();
-			compute_sum_per_channel_gpu(N, C, S, top_diff, shift_diff);
+			compute_sum_per_channel_gpu(N, C, HW, top_diff, shift_diff);
 
 			// --  STAGE 2: backprop dE/d(x_norm) = dE/dY .* scale ------------
 			//  dE/d(X_norm) = dE/dY * scale[c]
 			const Dtype* scale_data = this->blobs_[3]->gpu_data();
-			multicast_gpu(N, C, S, scale_data, temp_NCHW_.mutable_gpu_data());
+			multicast_gpu(N, C, HW, scale_data, temp_NCHW_.mutable_gpu_data());
 			caffe_gpu_mul<Dtype>(top_size, top_diff, temp_NCHW_.gpu_data(),
 				x_norm_.mutable_gpu_diff());
 
@@ -137,18 +137,18 @@ namespace caffe {
 		//  temp = mean(dE/dY .* Y)
 		caffe_gpu_mul<Dtype>(top_size, top_diff, top_data,
 			temp_NCHW_.mutable_gpu_diff());
-		compute_mean_per_channel_gpu(N, C, S, temp_NCHW_.gpu_diff(),
+		compute_mean_per_channel_gpu(N, C, HW, temp_NCHW_.gpu_diff(),
 			temp_C_.mutable_gpu_diff());
-		multicast_gpu(N, C, S, temp_C_.gpu_diff(),
+		multicast_gpu(N, C, HW, temp_C_.gpu_diff(),
 			temp_NCHW_.mutable_gpu_diff());
 
 		// bottom = mean(dE/dY .* Y) .* Y
 		caffe_gpu_mul<Dtype>(top_size, temp_NCHW_.gpu_diff(), top_data, bottom_diff);
 
 		// temp = mean(dE/dY)
-		compute_mean_per_channel_gpu(N, C, S, top_diff,
+		compute_mean_per_channel_gpu(N, C, HW, top_diff,
 			temp_C_.mutable_gpu_diff());
-		multicast_gpu(N, C, S, temp_C_.gpu_diff(),
+		multicast_gpu(N, C, HW, temp_C_.gpu_diff(),
 			temp_NCHW_.mutable_gpu_diff());
 
 		// bottom = mean(dE/dY) + mean(dE/dY .* Y) .* Y
@@ -158,7 +158,7 @@ namespace caffe {
 		caffe_gpu_sub<Dtype>(top_size, top_diff, bottom_diff, bottom_diff);
 
 		// dE/dX = dE/dX ./ sqrt(var(X) + eps)
-		multicast_gpu(N, C, S, inv_var_.gpu_data(),
+		multicast_gpu(N, C, HW, inv_var_.gpu_data(),
 			temp_NCHW_.mutable_gpu_data());
 		caffe_gpu_mul<Dtype>(top_size, bottom_diff, temp_NCHW_.gpu_data(), bottom_diff);
 	}

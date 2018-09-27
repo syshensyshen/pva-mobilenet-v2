@@ -2,6 +2,16 @@
 #include <algorithm>
 
 #include "caffe/layers/depthwise_convolution.hpp"
+#include "caffe/util/gpu_util.cuh"
+
+#if !defined(_MSC_VER)
+#define CUDA_UNROLL _Pragma("unroll")
+#define CUDA_NOUNROLL _Pragma("nounroll")
+#else
+#define CUDA_UNROLL
+#define CUDA_NOUNROLL
+#endif
+
 
 #define THREADS_PER_BLOCK          1024
 #if __CUDA_ARCH__ >= 200
@@ -183,7 +193,7 @@ namespace caffe {
 	// performing the convolution. Each thread handles two elements per iteration,
 	// one each in the lower and upper half of a tile.
 	// Backward input direction is the same as forward direction with the filter
-	// rotated by 180¡ã.
+	// rotated by 180Ð±Ñƒ.
 	template <typename Dtype>
 	__global__ /*__launch_bounds__(1024, 2)*/
 		void DepthwiseConv2dKernelSmall(
@@ -445,8 +455,8 @@ namespace caffe {
 						(filter_width * f_h);
 
 					CUDA_UNROLL for (int f_w = 0; f_w < filter_width; ++f_w) {
-						const int in_col = in_col_start + f_w;
-						const int input_offset = input_offset_temp + in_col;
+						int in_col = in_col_start + f_w;
+						int input_offset = input_offset_temp + in_col;
 						Dtype partial_sum = __ldg(input + input_offset) * out_bp;
 						Dtype* addr = filter_backprop + (filter_backprop_temp + f_w);
 						atomicAdd(addr, partial_sum);
@@ -647,6 +657,7 @@ namespace caffe {
 						val += __shfl_xor_sync(mask, val, delta);
 					}
 					if (!(thread_idx & kAccumPixels - 1)) {
+                                                //caffe_gpu_atomic_add<Dtype>(filter + filter_offset, val);
 						atomicAdd(filter + filter_offset, val);
 					}
 				}
@@ -999,7 +1010,7 @@ namespace caffe {
 		const Dtype* weight = this->blobs_[0]->mutable_gpu_data();
 		DepthwiseConv2dForwardGpu<Dtype>(stream, args, bottom_data, top_data, weight, DIRECTION_FORWARD);
 		// bias forward
-		if (bias_term_) {
+		if (this->bias_term_) {
 		}
 	}
 
@@ -1025,7 +1036,7 @@ namespace caffe {
 			bottom_diff,
 			DIRECTION_BACKWARD);
 		// bias backward
-		if (bias_term_) {
+		if (this->bias_term_) {
 		}
 	}
 

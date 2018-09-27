@@ -32,7 +32,7 @@ namespace caffe {
 					cudnn::dataType<Dtype>::zero,
 					top_descs_[i], 
 					top_data + top_offset_));
-				/*CUDNN_CHECK(cudnnConvolutionForward(handle_[g],
+				/*CUDNN_CHECK(cudnnConvolutionForward(handle_,
 				cudnn::dataType<Dtype>::one,
 				bottom_descs_[i], bottom_data + bottom_offset_ * g,
 				filter_desc_, weight + this->weight_offset_ * g,
@@ -49,7 +49,7 @@ namespace caffe {
 						bias_desc_, bias_data + bias_offset_,
 						cudnn::dataType<Dtype>::one,
 						top_descs_[i], top_data + top_offset_));
-					/* CUDNN_CHECK(cudnnAddTensor(handle_[g],
+					/* CUDNN_CHECK(cudnnAddTensor(handle_,
 					cudnn::dataType<Dtype>::one,
 					bias_desc_, bias_data + bias_offset_ * g,
 					cudnn::dataType<Dtype>::one,
@@ -89,7 +89,7 @@ namespace caffe {
 						top_descs_[i], top_diff + top_offset_,
 						cudnn::dataType<Dtype>::one,
 						bias_desc_, bias_diff + bias_offset_));
-					/*CUDNN_CHECK(cudnnConvolutionBackwardBias(handle_[0*this->group_ + g],
+					/*CUDNN_CHECK(cudnnConvolutionBackwardBias(handle_,
 					cudnn::dataType<Dtype>::one,
 					top_descs_[i],  top_diff + top_offset_ * g,
 					cudnn::dataType<Dtype>::one,
@@ -110,7 +110,7 @@ namespace caffe {
 						cudnn::dataType<Dtype>::one,
 						filter_desc_, weight_diff + this->weight_offset_));
 					/*CUDNN_CHECK(cudnnConvolutionBackwardFilter(
-					handle_[1*this->group_ + g],
+					handle_,
 					cudnn::dataType<Dtype>::one,
 					bottom_descs_[i], bottom_data + bottom_offset_ * g,
 					top_descs_[i],    top_diff + top_offset_ * g,
@@ -138,7 +138,7 @@ namespace caffe {
 						cudnn::dataType<Dtype>::zero,
 						bottom_descs_[i], bottom_diff + bottom_offset_));
 					/*CUDNN_CHECK(cudnnConvolutionBackwardData(
-					handle_[2*this->group_ + g],
+					handle_,
 					cudnn::dataType<Dtype>::one,
 					filter_desc_, weight + this->weight_offset_ * g,
 					top_descs_[i], top_diff + top_offset_ * g,
@@ -161,3 +161,4 @@ namespace caffe {
 
 }  // namespace caffe
 #endif
+

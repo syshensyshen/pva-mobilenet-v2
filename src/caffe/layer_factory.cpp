@@ -132,6 +132,9 @@ shared_ptr<Layer<Dtype> > GetBatchNormLayer(
 	if (engine == BatchNormParameter_Engine_DEFAULT) {
 		engine = BatchNormParameter_Engine_CAFFE;
 	}
+#ifdef USE_CUDNN
+   engine = BatchNormParameter_Engine_CUDNN;
+#endif
 	if (engine == BatchNormParameter_Engine_CAFFE) {
 		return shared_ptr<Layer<Dtype> >(new BatchNormLayer<Dtype>(param));
 #ifdef USE_CUDNN

@@ -19,7 +19,8 @@ namespace caffe {
 		const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
 		DepthwiseConvolutionLayer<Dtype>::LayerSetUp(bottom, top);
 		// Initialize CUDA streams and cuDNN.
-		handle_ = cudnnCreate(&handle_);
+		CUDNN_CHECK(cudnnCreate(&handle_));
+		//handle_         = new cudnnHandle_t[1];
 
 		// Initialize algorithm arrays
 		fwd_algo_ = new cudnnConvolutionFwdAlgo_t[bottom.size()];
@@ -108,6 +109,15 @@ namespace caffe {
 		const int* stride_data = this->stride_.cpu_data();
 		const int stride_h = stride_data[0];
 		const int stride_w = stride_data[1];
+		//LOG(INFO) << "########################################### cudnn depthwise ";
+		//LOG(INFO) << "########################################### " << bottom[0]->num();
+		//LOG(INFO) << "########################################### " << bottom[0]->channels();
+		//LOG(INFO) << "########################################### " << bottom[0]->height();
+		//LOG(INFO) << "########################################### " << bottom[0]->width();
+		//LOG(INFO) << "########################################### " << top[0]->num();
+		//LOG(INFO) << "########################################### " << top[0]->channels();
+		//LOG(INFO) << "########################################### " << top[0]->height();
+		//LOG(INFO) << "########################################### " << top[0]->width();
 
 		// Specify workspace limit for kernels directly until we have a
 		// planning strategy and a rewrite of Caffe's GPU memory mangagement
@@ -148,42 +158,42 @@ namespace caffe {
 
 			// choose forward and backward algorithms + workspace(s)
 			CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm(handle_,
-				top_descs_[i]/*bottom_descs_[i]*/,
+				bottom_descs_[i],
 				filter_desc_,
 				conv_descs_[i],
-				bottom_descs_[i]/*top_descs_[i]*/,
+				top_descs_[i],
 				CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT,
 				workspace_limit_bytes,
 				&fwd_algo_[i]));
 
 			CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(handle_,
-				top_descs_[i]/*bottom_descs_[i]*/,
+				bottom_descs_[i],
 				filter_desc_,
 				conv_descs_[i],
-				bottom_descs_[i]/*top_descs_[i]*/,
+				top_descs_[i],
 				fwd_algo_[i],
 				&(workspace_fwd_sizes_[i])));
 
 			// choose backward algorithm for filter
 			CUDNN_CHECK(cudnnGetConvolutionBackwardFilterAlgorithm(handle_,
-				top_descs_[i]/*bottom_descs_[i]*/, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], filter_desc_,
+				bottom_descs_[i], top_descs_[i], conv_descs_[i], filter_desc_,
 				CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT,
 				workspace_limit_bytes, &bwd_filter_algo_[i]));
 
 			// get workspace for backwards filter algorithm
 			CUDNN_CHECK(cudnnGetConvolutionBackwardFilterWorkspaceSize(handle_,
-				top_descs_[i]/*bottom_descs_[i]*/, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], filter_desc_,
+				bottom_descs_[i], top_descs_[i], conv_descs_[i], filter_desc_,
 				bwd_filter_algo_[i], &workspace_bwd_filter_sizes_[i]));
 
 			// choose backward algo for data
 			CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm(handle_,
-				filter_desc_, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], top_descs_[i]/*bottom_descs_[i]*/,
+				filter_desc_, top_descs_[i], conv_descs_[i], bottom_descs_[i],
 				CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT,
 				workspace_limit_bytes, &bwd_data_algo_[i]));
 
 			// get workspace size
 			CUDNN_CHECK(cudnnGetConvolutionBackwardDataWorkspaceSize(handle_,
-				filter_desc_, bottom_descs_[i]/*top_descs_[i]*/, conv_descs_[i], top_descs_[i]/*bottom_descs_[i]*/,
+				filter_desc_, top_descs_[i], conv_descs_[i], bottom_descs_[i],
 				bwd_data_algo_[i], &workspace_bwd_data_sizes_[i]));
 		}
 
@@ -286,3 +296,4 @@ namespace caffe {
 
 }   // namespace caffe
 #endif
+
