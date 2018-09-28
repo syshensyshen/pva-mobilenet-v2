@@ -12,9 +12,9 @@ namespace caffe {
 	template<typename Dtype>
 	void CuDNNBatchNormLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
-
+        
 		const Dtype *bottom_data = bottom[0]->gpu_data();
-                Dtype* top_data = top[0] == bottom[0] ?
+        Dtype* top_data = top[0] == bottom[0] ?
 			private_top_.mutable_gpu_data() : top[0]->mutable_gpu_data();
 		//Dtype *top_data = top[0]->mutable_gpu_data();
 
@@ -24,8 +24,9 @@ namespace caffe {
 		Dtype *global_var;
 		Dtype *save_mean;
 		Dtype *save_inv_var;
-
+        //printf("######################################## before cudnn batch\r\n");
 		if (this->phase_ == TRAIN) {
+		    
 			global_mean = this->blobs_[0]->mutable_gpu_data();
 			global_var = this->blobs_[1]->mutable_gpu_data();
 			save_mean = save_mean_.mutable_gpu_data();
@@ -71,6 +72,7 @@ namespace caffe {
 			private_bottom_.CopyFrom(*bottom[0]);
 			top[0]->CopyFrom(private_top_);
 		}
+		//printf("######################################## after cudnn batch\r\n");
 	}
 
 
@@ -80,10 +82,10 @@ namespace caffe {
 
 		const Dtype *top_diff = top[0]->gpu_diff();
 		Dtype * bottom_diff = bottom[0]->mutable_gpu_diff();
-                const Dtype* bottom_data = top[0] == bottom[0] ?
+        const Dtype* bottom_data = top[0] == bottom[0] ?
 			private_bottom_.gpu_data() : bottom[0]->gpu_data();
 		//const Dtype *bottom_data = bottom[0]->gpu_data();
-		double epsilon = this->eps_;
+		//double epsilon = this->eps_;
 		const Dtype* save_mean;
 		const Dtype* save_inv_var;
 		const Dtype* scale_data;

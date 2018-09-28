@@ -109,15 +109,6 @@ namespace caffe {
 		const int* stride_data = this->stride_.cpu_data();
 		const int stride_h = stride_data[0];
 		const int stride_w = stride_data[1];
-		//LOG(INFO) << "########################################### cudnn depthwise ";
-		//LOG(INFO) << "########################################### " << bottom[0]->num();
-		//LOG(INFO) << "########################################### " << bottom[0]->channels();
-		//LOG(INFO) << "########################################### " << bottom[0]->height();
-		//LOG(INFO) << "########################################### " << bottom[0]->width();
-		//LOG(INFO) << "########################################### " << top[0]->num();
-		//LOG(INFO) << "########################################### " << top[0]->channels();
-		//LOG(INFO) << "########################################### " << top[0]->height();
-		//LOG(INFO) << "########################################### " << top[0]->width();
 
 		// Specify workspace limit for kernels directly until we have a
 		// planning strategy and a rewrite of Caffe's GPU memory mangagement
@@ -131,10 +122,10 @@ namespace caffe {
 			height * width, width, 1);*/
 			cudnn::setTensor4dDesc<Dtype>(&bottom_descs_[i],
 				this->num_ * this->group_, // batch
-				this->channels_ / this->group_, // channels
+				1/*this->channels_ / this->group_*/, // channels
 				height, // height
 				width, // width
-				this->channels_ / this->group_ * height * width, // stride n
+				/*this->channels_ / this->group_ **/ height * width, // stride n
 				height * width, //stride c
 				width, //stride h
 				1); // stride w
@@ -145,10 +136,10 @@ namespace caffe {
 					this->out_spatial_dim_, width_out, 1);*/
 			cudnn::setTensor4dDesc<Dtype>(&top_descs_[i],
 				this->num_ * this->group_,
-				this->num_output_ / this->group_,
+				1/*this->num_output_ / this->group_*/,
 				height_out,
 				width_out,
-				this->num_output_ / this->group_ * this->out_spatial_dim_, // num_output_ kernel num, out_spatial_dim_ = c * h * w
+				/*this->num_output_ / this->group_ * */this->out_spatial_dim_, // num_output_ kernel num, out_spatial_dim_ = c * h * w
 				this->out_spatial_dim_,
 				width_out,
 				1);

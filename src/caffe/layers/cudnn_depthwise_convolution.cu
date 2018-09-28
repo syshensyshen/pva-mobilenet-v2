@@ -10,11 +10,17 @@ namespace caffe {
 	template <typename Dtype>
 	void CuDNNDepthwiseConvolutionLayer<Dtype>::Forward_gpu(
 		const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+		//printf("##################################################### %d\r\n", top[0]->num());
+		//printf("##################################################### %d\r\n", top[0]->channels());
+		//printf("##################################################### %d\r\n", top[0]->height());
+		//printf("##################################################### %d\r\n", top[0]->width());
+		//printf("##################################################### %d\r\n", top[0]->gpu_data());
+		//printf("##################################################### before cudnn depthwise\r\n");
 		const Dtype* weight = this->blobs_[0]->gpu_data();
 		for (int i = 0; i < bottom.size(); ++i) {
 			const Dtype* bottom_data = bottom[i]->gpu_data();
 			Dtype* top_data = top[i]->mutable_gpu_data();
-
+            //printf("##################################################### test cudnn depthwise\r\n");
 			// Forward through cuDNN in parallel over groups.
 			//for (int g = 0; g < this->group_; g++) {
 			{
@@ -31,15 +37,7 @@ namespace caffe {
 					workspace_fwd_sizes_[i],
 					cudnn::dataType<Dtype>::zero,
 					top_descs_[i], 
-					top_data + top_offset_));
-				/*CUDNN_CHECK(cudnnConvolutionForward(handle_,
-				cudnn::dataType<Dtype>::one,
-				bottom_descs_[i], bottom_data + bottom_offset_ * g,
-				filter_desc_, weight + this->weight_offset_ * g,
-				conv_descs_[i],
-				fwd_algo_[i], workspace[g], workspace_fwd_sizes_[i],
-				cudnn::dataType<Dtype>::zero,
-				top_descs_[i], top_data + top_offset_ * g));*/
+					top_data + top_offset_));				
 
 				// Bias.
 				if (this->bias_term_) {
@@ -49,19 +47,15 @@ namespace caffe {
 						bias_desc_, bias_data + bias_offset_,
 						cudnn::dataType<Dtype>::one,
 						top_descs_[i], top_data + top_offset_));
-					/* CUDNN_CHECK(cudnnAddTensor(handle_,
-					cudnn::dataType<Dtype>::one,
-					bias_desc_, bias_data + bias_offset_ * g,
-					cudnn::dataType<Dtype>::one,
-					top_descs_[i], top_data + top_offset_ * g));*/
 				}
 			}
 
 			// Synchronize the work across groups, each of which went into its own
 			// stream, by launching an empty kernel into the default (null) stream.
 			// NOLINT_NEXT_LINE(whitespace/operators)
-			//sync_conv_groups<<<1, 1>>>();
+			//sync_depthwise_conv_groups<<<1, 1>>>();
 		}
+		//printf("##################################################### after cudnn depthwise\r\n");
 	}
 
 	template <typename Dtype>
@@ -89,11 +83,6 @@ namespace caffe {
 						top_descs_[i], top_diff + top_offset_,
 						cudnn::dataType<Dtype>::one,
 						bias_desc_, bias_diff + bias_offset_));
-					/*CUDNN_CHECK(cudnnConvolutionBackwardBias(handle_,
-					cudnn::dataType<Dtype>::one,
-					top_descs_[i],  top_diff + top_offset_ * g,
-					cudnn::dataType<Dtype>::one,
-					bias_desc_, bias_diff + bias_offset_ * g));*/
 				}
 
 				// Gradient w.r.t. weights.
@@ -105,20 +94,10 @@ namespace caffe {
 						bottom_descs_[i], bottom_data + bottom_offset_,
 						top_descs_[i], top_diff + top_offset_,
 						conv_descs_[i],
-						bwd_filter_algo_[i], workspace[1 * this->group_],
+						bwd_filter_algo_[i], workspace[0],
 						workspace_bwd_filter_sizes_[i],
 						cudnn::dataType<Dtype>::one,
 						filter_desc_, weight_diff + this->weight_offset_));
-					/*CUDNN_CHECK(cudnnConvolutionBackwardFilter(
-					handle_,
-					cudnn::dataType<Dtype>::one,
-					bottom_descs_[i], bottom_data + bottom_offset_ * g,
-					top_descs_[i],    top_diff + top_offset_ * g,
-					conv_descs_[i],
-					bwd_filter_algo_[i], workspace[1*this->group_ + g],
-					workspace_bwd_filter_sizes_[i],
-					cudnn::dataType<Dtype>::one,
-					filter_desc_, weight_diff + this->weight_offset_ * g));*/
 				}
 
 				// Gradient w.r.t. bottom data.
@@ -133,20 +112,10 @@ namespace caffe {
 						filter_desc_, weight + this->weight_offset_,
 						top_descs_[i], top_diff + top_offset_,
 						conv_descs_[i],
-						bwd_data_algo_[i], workspace[2 * this->group_],
+						bwd_data_algo_[i], workspace[0],
 						workspace_bwd_data_sizes_[i],
 						cudnn::dataType<Dtype>::zero,
 						bottom_descs_[i], bottom_diff + bottom_offset_));
-					/*CUDNN_CHECK(cudnnConvolutionBackwardData(
-					handle_,
-					cudnn::dataType<Dtype>::one,
-					filter_desc_, weight + this->weight_offset_ * g,
-					top_descs_[i], top_diff + top_offset_ * g,
-					conv_descs_[i],
-					bwd_data_algo_[i], workspace[2*this->group_ + g],
-					workspace_bwd_data_sizes_[i],
-					cudnn::dataType<Dtype>::zero,
-					bottom_descs_[i], bottom_diff + bottom_offset_ * g));*/
 				}
 			}
 

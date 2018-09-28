@@ -6,6 +6,35 @@
 
 namespace caffe {
 
+	//  multicast x[c] into y[.,c,...]
+	template <typename Dtype>
+	void BatchNormLayer<Dtype>::multicast_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+		caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
+			ones_N_.cpu_data(), x, Dtype(0.),
+			temp_NC_.mutable_cpu_data());
+		caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N*C, S, 1,
+			Dtype(1.), temp_NC_.cpu_data(), ones_HW_.cpu_data(),
+			Dtype(0.), y);
+	}
+
+	//  y[c] = sum x(.,c,...)
+	template <typename Dtype>
+	void BatchNormLayer<Dtype>::compute_sum_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+		caffe_cpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
+			ones_HW_.cpu_data(), Dtype(0.),
+			temp_NC_.mutable_cpu_data());
+		caffe_cpu_gemv<Dtype>(CblasTrans, N, C, Dtype(1.), temp_NC_.cpu_data(),
+			ones_N_.cpu_data(), Dtype(0.), y);
+	}
+
+	// y[c] = mean x(.,c,...)
+	template <typename Dtype>
+	void BatchNormLayer<Dtype>::compute_mean_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+		Dtype F = 1. / (N * S);
+		compute_sum_per_channel_cpu(N, C, S, x, y);
+		caffe_cpu_scale(C, F, y, y);
+	}
+
 	template <typename Dtype>
 	void BatchNormLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
@@ -19,9 +48,9 @@ namespace caffe {
 		else
 			channels_ = bottom[0]->shape(1);
 		eps_ = param.eps();
-		//if (eps_ > CUDNN_BN_MIN_EPSILON) {
-		//	eps_ = CUDNN_BN_MIN_EPSILON;
-		//}
+		if (eps_ > CUDNN_BN_MIN_EPSILON) {
+			eps_ = CUDNN_BN_MIN_EPSILON;
+		}
 		scale_bias_ = false;
 		scale_bias_ = param.scale_bias(); // by default = false;
 		if (param.has_scale_filler() || param.has_bias_filler()) { // implicit set
@@ -88,22 +117,10 @@ namespace caffe {
 					this->layer_param_.add_param();
 				}
 				//set lr and decay = 1 for scale and bias
-				if (use_global_stats_) {
-				    this->layer_param_.mutable_param(i)->set_lr_mult(0.0f);
-				    this->layer_param_.mutable_param(i)->set_decay_mult(0.0f);
-				} else {
-					this->layer_param_.mutable_param(i)->set_lr_mult(1.f);
-				    this->layer_param_.mutable_param(i)->set_decay_mult(1.f);
-				}
+				this->layer_param_.mutable_param(i)->set_lr_mult(1.f);
+				this->layer_param_.mutable_param(i)->set_decay_mult(1.f);
 			}
 		}
-		
-		//LOG(INFO) << "########################################### cuda batch ";
-		//LOG(INFO) << "########################################### " << bottom[0]->num();
-		//LOG(INFO) << "########################################### " << bottom[0]->channels();
-		//LOG(INFO) << "########################################### " << bottom[0]->height();
-		//LOG(INFO) << "########################################### " << bottom[0]->width();
-		
 	}
 
 	template <typename Dtype>
@@ -156,11 +173,10 @@ namespace caffe {
 		Dtype* top_data = top[0]->mutable_cpu_data();
 		const Dtype* global_mean = this->blobs_[0]->cpu_data();
 		const Dtype* global_var = this->blobs_[1]->cpu_data();
-
-		if (this->phase_ == TEST) {
-			if (bottom[0] != top[0]) {
-				caffe_copy(top_size, bottom_data, top_data);
-			}
+		if (bottom[0] != top[0]) {
+			caffe_copy(top_size, bottom_data, top_data);
+		}
+		if (use_global_stats_) {
 			//  Y = X- EX
 			multicast_cpu(N, C, HW, global_mean, temp_NCHW_.mutable_cpu_data());
 			caffe_axpy<Dtype>(top_size, Dtype(-1.), temp_NCHW_.mutable_cpu_data(),
@@ -181,9 +197,6 @@ namespace caffe {
 			multicast_cpu(N, C, HW, mean_.mutable_cpu_data(),
 				temp_NCHW_.mutable_cpu_data());
 			//  Y = X- EX
-			if (bottom[0] != top[0]) {
-				caffe_copy(top_size, bottom_data, top_data);
-			}
 			caffe_axpy<Dtype>(top_size, Dtype(-1.), temp_NCHW_.mutable_cpu_data(),
 				top_data);
 			// compute variance E (X-EX)^2
@@ -204,24 +217,15 @@ namespace caffe {
 
 			// clip variance
 			//  update global mean and variance
-			if (iter_ > 1) {
-				if (use_global_stats_) {
-					moving_average_fraction_ = Dtype(0.0);
-				}
-				caffe_cpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
-					mean_.cpu_data(), moving_average_fraction_,
-					this->blobs_[0]->mutable_cpu_data());
-				caffe_cpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
-					var_.cpu_data(), moving_average_fraction_,
-					this->blobs_[1]->mutable_cpu_data());
+			if (use_global_stats_) {
+				moving_average_fraction_ = Dtype(0.0);
 			}
-			else {
-				caffe_copy<Dtype>(C, mean_.cpu_data(),
-					this->blobs_[0]->mutable_cpu_data());
-				caffe_copy<Dtype>(C, var_.cpu_data(),
-					this->blobs_[1]->mutable_cpu_data());
-			}
-			iter_++;
+			caffe_cpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+				mean_.cpu_data(), moving_average_fraction_,
+				this->blobs_[0]->mutable_cpu_data());
+			caffe_cpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+				var_.cpu_data(), moving_average_fraction_,
+				this->blobs_[1]->mutable_cpu_data());
 		}
 
 		// -- STAGE 2:  Y = X_norm * scale[c] + shift[c]  -----------------
@@ -237,6 +241,7 @@ namespace caffe {
 				temp_NCHW_.mutable_cpu_data());
 			caffe_add<Dtype>(top_size, top_data, temp_NCHW_.mutable_cpu_data(), top_data);
 		}
+
 	}
 
 	template <typename Dtype>
@@ -309,7 +314,7 @@ namespace caffe {
 #endif
 
 	INSTANTIATE_CLASS(BatchNormLayer);
-#ifndef USE_CUDNN_BATCH_NORM
-	REGISTER_LAYER_CLASS(BatchNorm);
-#endif
+//#ifndef USE_CUDNN_BATCH_NORM
+//	REGISTER_LAYER_CLASS(BatchNorm);
+//#endif
 }  // namespace caffe

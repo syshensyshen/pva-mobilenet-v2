@@ -6,6 +6,33 @@
 
 namespace caffe {
 
+	// multicast x[c] into y[.,c,...]
+	template <typename Dtype>
+	void BatchNormLayer<Dtype>::multicast_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+		caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
+			ones_N_.gpu_data(), x, Dtype(0.),
+			temp_NC_.mutable_gpu_data());
+		caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N*C, S, 1, Dtype(1.),
+			temp_NC_.gpu_data(), ones_HW_.gpu_data(), Dtype(0.), y);
+	}
+
+	// y[c] = sum x(.,c,...)
+	template <typename Dtype>
+	void BatchNormLayer<Dtype>::compute_sum_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+		caffe_gpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
+			ones_HW_.gpu_data(),
+			Dtype(0.), temp_NC_.mutable_gpu_data());
+		caffe_gpu_gemv<Dtype>(CblasTrans, N, C, Dtype(1.), temp_NC_.gpu_data(),
+			ones_N_.gpu_data(), Dtype(0.), y);
+	}
+
+	// y[c] = mean x(.,c,...)
+	template <typename Dtype>
+	void BatchNormLayer<Dtype>::compute_mean_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+		Dtype F = 1. / (N * S);
+		compute_sum_per_channel_gpu(N, C, S, x, y);
+		caffe_gpu_scal(C, F, y);
+	}
 
 
 	template <typename Dtype>
@@ -15,13 +42,12 @@ namespace caffe {
 		int C = channels_;
 		int S = bottom[0]->count(0) / (N * C);
 		int top_size = top[0]->count();
-
+        //printf("######################################## before cuda batch normal\r\n");
 		const Dtype* bottom_data = bottom[0]->gpu_data();
 		Dtype* top_data = top[0]->mutable_gpu_data();
 		const Dtype* global_mean = this->blobs_[0]->gpu_data();
 		const Dtype* global_var = this->blobs_[1]->gpu_data();
-
-		if (this->phase_ == TEST) {
+		if (use_global_stats_)  {
 			//  Y = X- EX
 			multicast_gpu(N, C, S, global_mean, temp_NCHW_.mutable_gpu_data());
 			caffe_gpu_sub<Dtype>(top_size, bottom_data, temp_NCHW_.gpu_data(), top_data);
@@ -35,7 +61,7 @@ namespace caffe {
 				temp_NCHW_.mutable_gpu_data());
 			caffe_gpu_mul<Dtype>(top_size, top_data, temp_NCHW_.gpu_data(), top_data);
 		}
-		else {  
+		else {
 			// if (this->phase_ == TRAIN)
 			// temp = EX
 			compute_mean_per_channel_gpu(N, C, S, bottom_data,
@@ -63,25 +89,17 @@ namespace caffe {
 			// copy x_norm for backward
 			caffe_copy<Dtype>(top_size, top_data, x_norm_.mutable_gpu_data());
 
+			// clip variance
 			//  update global mean and variance
-			if (iter_ > 1) {
-				if (use_global_stats_) {
-					moving_average_fraction_ = Dtype(0.0);
-				}
-				caffe_gpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
-					mean_.gpu_data(), moving_average_fraction_,
-					this->blobs_[0]->mutable_gpu_data());
-				caffe_gpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
-					var_.gpu_data(), moving_average_fraction_,
-					this->blobs_[1]->mutable_gpu_data());
+			if (use_global_stats_) {
+				moving_average_fraction_ = Dtype(0.0);
 			}
-			else {
-				caffe_copy<Dtype>(C, mean_.gpu_data(),
-					this->blobs_[0]->mutable_gpu_data());
-				caffe_copy<Dtype>(C, var_.gpu_data(),
-					this->blobs_[1]->mutable_gpu_data());
-			}
-			iter_++;
+			caffe_gpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+				mean_.gpu_data(), moving_average_fraction_,
+				this->blobs_[0]->mutable_gpu_data());
+			caffe_gpu_axpby<Dtype>(C, 1. - moving_average_fraction_,
+				var_.gpu_data(), moving_average_fraction_,
+				this->blobs_[1]->mutable_gpu_data());
 		}
 
 		//  -- STAGE 2:  Y = X_norm * scale[c] + shift[c]  -----------------
@@ -96,6 +114,7 @@ namespace caffe {
 			caffe_gpu_add<Dtype>(top_size, top_data, temp_NCHW_.mutable_gpu_data(),
 				top_data);
 		}
+		//printf("######################################## after cuda batch normal\r\n");
 	}
 
 	template <typename Dtype>
