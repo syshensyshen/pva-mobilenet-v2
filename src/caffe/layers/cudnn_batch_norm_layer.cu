@@ -45,24 +45,21 @@ namespace caffe {
 			bias_data = bias_zeros_.gpu_data();
 		}
 
-		if (this->phase_ == TRAIN ) {
-			Dtype factor = 1. - this->moving_average_fraction_;
-			if (this->use_global_stats_) {
-				factor = 0;
-			}
-			CUDNN_CHECK(cudnnBatchNormalizationForwardTraining(handle_, mode_,
-				cudnn::dataType<Dtype>::one, cudnn::dataType<Dtype>::zero,
-				bottom_desc_, bottom_data, top_desc_, top_data,
-				scale_bias_mean_var_desc_, scale_data, bias_data,
-				factor, global_mean, global_var, CUDNN_BN_MIN_EPSILON, save_mean, save_inv_var));
-		}
-		else if (this->phase_ == TEST) {
+		if (this->phase_ == TEST || this->use_global_stats_) {
 			CUDNN_CHECK(cudnnBatchNormalizationForwardInference(handle_,
 				CUDNN_BATCHNORM_SPATIAL,
 				cudnn::dataType<Dtype>::one, cudnn::dataType<Dtype>::zero,
 				bottom_desc_, bottom_data, top_desc_, top_data,
 				scale_bias_mean_var_desc_, scale_data, bias_data,
 				global_mean, global_var, CUDNN_BN_MIN_EPSILON));
+		}
+		else if (this->phase_ == TRAIN) {					
+				Dtype factor = 1. - this->moving_average_fraction_;
+			CUDNN_CHECK(cudnnBatchNormalizationForwardTraining(handle_, mode_,
+				cudnn::dataType<Dtype>::one, cudnn::dataType<Dtype>::zero,
+				bottom_desc_, bottom_data, top_desc_, top_data,
+				scale_bias_mean_var_desc_, scale_data, bias_data,
+				factor, global_mean, global_var, CUDNN_BN_MIN_EPSILON, save_mean, save_inv_var));
 		}
 		else {
 			LOG(FATAL) << "Unknown phase";

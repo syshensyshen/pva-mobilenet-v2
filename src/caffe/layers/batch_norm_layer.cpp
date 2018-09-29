@@ -176,7 +176,7 @@ namespace caffe {
 		if (bottom[0] != top[0]) {
 			caffe_copy(top_size, bottom_data, top_data);
 		}
-		if (use_global_stats_) {
+		if (use_global_stats_ || this->phase_ == TEST) {
 			//  Y = X- EX
 			multicast_cpu(N, C, HW, global_mean, temp_NCHW_.mutable_cpu_data());
 			caffe_axpy<Dtype>(top_size, Dtype(-1.), temp_NCHW_.mutable_cpu_data(),

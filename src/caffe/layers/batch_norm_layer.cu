@@ -47,7 +47,7 @@ namespace caffe {
 		Dtype* top_data = top[0]->mutable_gpu_data();
 		const Dtype* global_mean = this->blobs_[0]->gpu_data();
 		const Dtype* global_var = this->blobs_[1]->gpu_data();
-		if (use_global_stats_)  {
+		if (use_global_stats_ || this->phase_ == TEST)  {
 			//  Y = X- EX
 			multicast_gpu(N, C, S, global_mean, temp_NCHW_.mutable_gpu_data());
 			caffe_gpu_sub<Dtype>(top_size, bottom_data, temp_NCHW_.gpu_data(), top_data);
