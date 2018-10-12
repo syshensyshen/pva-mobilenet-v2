@@ -109,7 +109,7 @@ template <typename Dtype>
 Dtype caffe_cpu_asum(const int n, const Dtype* x);
 
 template <typename Dtype>
-Dtype caffe_cpu_l2norm(const int n, const Dtype* x);
+void caffe_cpu_l2norm(const int n, const Dtype* x);
 
 // the branchless, type-safe version from
 // http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c
