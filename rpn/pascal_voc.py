@@ -18,6 +18,7 @@ import subprocess
 import uuid
 from voc_eval import voc_eval
 from fast_rcnn.config import cfg
+import cv2
 
 class pascal_voc(imdb):
     def __init__(self, image_set, year, devkit_path=None):
@@ -214,14 +215,23 @@ class pascal_voc(imdb):
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
-            shape = obj.find('shape')
-            points = shape.find('points')
-            key_points = []
-            for point in points:
-                key_point.append(point.text)
-                key_points.append(np.int32(key_point))
-            key_points = np.array(key_points, np.int32)
-            key_points = key_points.reshape((2, -1))
+            M = cfg.TRAIN.MASK_RCNN_SIZE
+            mask_targets = np.zeros((M,M), dtype=np.float32)
+            if cfg.TRAIN.MASK_RCNN:
+                shape = obj.find('shape')
+                points = shape.find('points')
+                key_points = []
+                for point in points:
+                    key_point.append(point.text)
+                    key_points.append(np.int32(key_point))
+                key_points = np.array(key_points, np.int32)
+                key_points = key_points.reshape((2, -1))
+                for i in range(0, M):
+                    for j in range(0, M):
+                        if cv2.PointPolygonTest(key_points, (i,j)):
+                            mask_targets[i,j] = 1
+                        else:
+                            mask_targets[i,j] = 0
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
 
@@ -229,7 +239,8 @@ class pascal_voc(imdb):
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,
                 'flipped' : False,
-                'seg_areas' : seg_areas}
+                'seg_areas' : seg_areas,
+                'mask_targets': mask_targets}
 
     def _get_comp_id(self):
         comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']
