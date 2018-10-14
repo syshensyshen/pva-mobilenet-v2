@@ -216,7 +216,9 @@ class pascal_voc(imdb):
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
             M = cfg.TRAIN.MASK_RCNN_SIZE
-            mask_targets = np.zeros((M,M), dtype=np.float32)
+            w = x2 - x1
+            h = y2 - y1
+            mask_targets = np.zeros((h,w), dtype=np.float32)
             if cfg.TRAIN.MASK_RCNN:
                 shape = obj.find('shape')
                 points = shape.find('points')
@@ -226,12 +228,13 @@ class pascal_voc(imdb):
                     key_points.append(np.int32(key_point))
                 key_points = np.array(key_points, np.int32)
                 key_points = key_points.reshape((2, -1))
-                for i in range(0, M):
-                    for j in range(0, M):
+                for i in range(0, h):
+                    for j in range(0, w):
                         if cv2.PointPolygonTest(key_points, (i,j)):
                             mask_targets[i,j] = 1
                         else:
                             mask_targets[i,j] = 0
+                mask_targets =  np.round(cv2.resize(mask_targets, (M,M), interpolation=cv2.INTER_CUBIC))
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
 
