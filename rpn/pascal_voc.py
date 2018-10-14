@@ -195,8 +195,9 @@ class pascal_voc(imdb):
             #         len(objs) - len(non_diff_objs))
             objs = non_diff_objs
         num_objs = len(objs)
-
+        M = cfg.TRAIN.MASK_RCNN_SIZE
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
+        mask_targets = np.zeros((num_objs,M,M), dtype=np.float32)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
         # "Seg" area for pascal is just the box area
@@ -215,10 +216,10 @@ class pascal_voc(imdb):
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
-            M = cfg.TRAIN.MASK_RCNN_SIZE
+            
             w = x2 - x1
             h = y2 - y1
-            mask_targets = np.zeros((h,w), dtype=np.float32)
+            mask_target = np.zeros((h,w), dtype=np.float32)
             if cfg.TRAIN.MASK_RCNN:
                 shape = obj.find('shape')
                 points = shape.find('points')
@@ -231,10 +232,11 @@ class pascal_voc(imdb):
                 for i in range(0, h):
                     for j in range(0, w):
                         if cv2.PointPolygonTest(key_points, (i,j)):
-                            mask_targets[i,j] = 1
+                            mask_target[i,j] = 1
                         else:
-                            mask_targets[i,j] = 0
-                mask_targets =  np.round(cv2.resize(mask_targets, (M,M), interpolation=cv2.INTER_CUBIC))
+                            mask_target[i,j] = 0
+                mask_target =  np.round(cv2.resize(mask_targets, (M,M), interpolation=cv2.INTER_CUBIC))
+                mask_targets[ix, :] = mask_target
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
 
