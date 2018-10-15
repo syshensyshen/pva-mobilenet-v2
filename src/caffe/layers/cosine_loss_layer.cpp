@@ -6,6 +6,9 @@ namespace caffe {
 	void CosineLossLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 		const vector<Blob<Dtype>*>& top) {
 		LossLayer<Dtype>::LayerSetUp(bottom, top);
+		CosineLossParameter cosine_loss_param = this->layer_param_.cosine_loss_param();
+		pos_weight = cosine_loss_param.has_position_weight() ? cosine_loss_param.position_weight() : Dtype(1.0);
+		nos_weight = cosine_loss_param.has_negative_weight() ? cosine_loss_param.negative_weight() : Dtype(1.0);
 	}
 
 	template <typename Dtype>
@@ -43,7 +46,7 @@ namespace caffe {
 		for (size_t i = 0; i < batch; i++) {
 			for (size_t j = i; j < batch; j++) {
 				//inner_product_data[i * batch + j] = caffe_cpu_dot(channels, bottom_data + i * channels, bottom_data + j * channels);
-				inner_product_data[i * batch + j] / (norm_data[i] * norm_data[j]);
+				inner_product_data[i * batch + j] /= (norm_data[i] * norm_data[j] + Dtype(1.0));
 				if (label[i] == label[j]) {
 					loss += (1 - inner_product_data[i * batch + j]);
 				}
@@ -53,7 +56,7 @@ namespace caffe {
 			}
 		}
 		
-		top[0]->mutable_cpu_data()[0] = loss;
+		top[0]->mutable_cpu_data()[0] = loss / bottom[0]->count();
 
 	}
 
