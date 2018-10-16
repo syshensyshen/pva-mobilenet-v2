@@ -30,10 +30,11 @@ namespace caffe {
 
 		void accu_assign(int batch, int count, bool reverse, const Dtype *x, Dtype *y, Dtype normalization) {
 			for (size_t i = 0; i < count; i++) {
+				normalization = normalization < 0.01 ? 0.01 : normalization;
 				Dtype x_norm = x[i] / normalization / (batch - 1);
 				Dtype scale = reverse ? pos_weight : nos_weight;
 				x_norm = x_norm * scale;
-				x_norm += Dtype(1.0);
+				//x_norm = x_norm > 1 ? x_norm : Dtype(1.0);
 				y[i] += reverse ? -x_norm : x_norm;
 			}
 		}
@@ -41,11 +42,12 @@ namespace caffe {
 		/// @copydoc AbsValLayer
 		virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 			const vector<Blob<Dtype>*>& top);
+		/*virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
+			const vector<Blob<Dtype>*>& top);*/
+
 		virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
 			const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-		/*virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-			const vector<Blob<Dtype>*>& top);		
-		virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
+		/*virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
 			const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);*/
 	private:
 		Blob<Dtype> norm_;

@@ -28,15 +28,15 @@ namespace caffe {
 		const vector<Blob<Dtype>*>& top) {
 		int batch = bottom[0]->num();
 		int channels = bottom[0]->channels();
-		int height = bottom[0]->height();
-		int width = bottom[0]->width();
-
+		//int height = bottom[0]->height();
+		//int width = bottom[0]->width();
+        
 		const Dtype *bottom_data = bottom[0]->cpu_data();
 		Dtype *norm_data = norm_.mutable_cpu_data();
 		Dtype *inner_product_data = inner_product.mutable_cpu_data();
 		Dtype loss = Dtype(0.0);
 		const Dtype* label = bottom[1]->cpu_data();
-
+        caffe_set(norm_.count(), Dtype(0.0), norm_data);
 		for (size_t i = 0; i < batch; i++) {
 			norm_data[i] = caffe_cpu_l2norm(channels, bottom_data + i * channels);
 		}
@@ -46,7 +46,8 @@ namespace caffe {
 		for (size_t i = 0; i < batch; i++) {
 			for (size_t j = i; j < batch; j++) {
 				//inner_product_data[i * batch + j] = caffe_cpu_dot(channels, bottom_data + i * channels, bottom_data + j * channels);
-				inner_product_data[i * batch + j] /= (norm_data[i] * norm_data[j] + Dtype(1.0));
+				inner_product_data[i * batch + j] /= norm_data[i] * norm_data[j] > 1.0 ? norm_data[i] * norm_data[j] : Dtype(1.0);
+				//LOG(INFO) << "############################ " << inner_product_data[i * batch + j];
 				if (label[i] == label[j]) {
 					loss += (1 - inner_product_data[i * batch + j]);
 				}
@@ -56,7 +57,7 @@ namespace caffe {
 			}
 		}
 		
-		top[0]->mutable_cpu_data()[0] = loss / bottom[0]->count();
+		top[0]->mutable_cpu_data()[0] = loss / (batch - 1);
 
 	}
 
@@ -66,15 +67,16 @@ namespace caffe {
 
 		int batch = bottom[0]->num();
 		int channels = bottom[0]->channels();
-		int height = bottom[0]->height();
-		int width = bottom[0]->width();
+		//int height = bottom[0]->height();
+		//int width = bottom[0]->width();
 		const Dtype* label = bottom[1]->cpu_data();
 		const Dtype *norm_data = norm_.cpu_data();
-		const Dtype *bottom_data = bottom[0]->mutable_cpu_data();
+		const Dtype *bottom_data = bottom[0]->mutable_cpu_data();		
 
 		if (propagate_down[0]) {
 
 			Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
+			caffe_set(bottom[0]->count(), Dtype(0.0), bottom_diff);
 
 			for (size_t i = 0; i < batch; i++) {
 				for (size_t j = 0; j < batch; j++) {
@@ -82,7 +84,7 @@ namespace caffe {
 						continue;
 					}
 					else {
-						bool reverse = label[i] == label[j];
+						bool reverse = (label[i] == label[j]);
 						accu_assign(batch, channels, reverse, bottom_data + j * channels, bottom_diff + i * channels, norm_data[i]);
 					}
 				}
