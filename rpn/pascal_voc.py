@@ -185,15 +185,15 @@ class pascal_voc(imdb):
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
-        #if not self.config['use_diff']:
+        if not self.config['use_diff'] and not cfg.TRAIN.USE_NON_LABELS:
             # Exclude the samples labeled as difficult
-        #    non_diff_objs = [
-        #        obj for obj in objs if int(obj.find('difficult').text) == 0]
-        #    print non_diff_objs
+            non_diff_objs = [
+                obj for obj in objs if int(obj.find('difficult').text) == 0]
+            
             # if len(non_diff_objs) != len(objs):
             #     print 'Removed {} difficult objects'.format(
             #         len(objs) - len(non_diff_objs))
-        #    objs = non_diff_objs
+            objs = non_diff_objs
         num_objs = len(objs)
         #print num_objs
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
@@ -206,8 +206,9 @@ class pascal_voc(imdb):
         for ix, obj in enumerate(objs):
             class_name = obj.find('name').text.lower().strip()
             #print class_name
-            if not class_name in self._classes:
-               continue 
+			if cfg.TRAIN.USE_NON_LABELS:
+                if not class_name in self._classes:
+			        continue 
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
             x1 = float(bbox.find('xmin').text) - 1
