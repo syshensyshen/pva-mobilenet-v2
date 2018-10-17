@@ -18,7 +18,6 @@ import subprocess
 import uuid
 from voc_eval import voc_eval
 from fast_rcnn.config import cfg
-import cv2
 
 class pascal_voc(imdb):
     def __init__(self, image_set, year, devkit_path=None):
@@ -28,12 +27,12 @@ class pascal_voc(imdb):
         self._devkit_path = self._get_default_path() if devkit_path is None \
                             else devkit_path
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
-        self._classes = ('__background__', # always index 0
-                         'aeroplane', 'bicycle', 'bird', 'boat',
-                         'bottle', 'bus', 'car', 'cat', 'chair',
-                         'cow', 'diningtable', 'dog', 'horse',
-                         'motorbike', 'person', 'pottedplant',
-                         'sheep', 'sofa', 'train', 'tvmonitor')
+        self._classes = ('__background__', 'huahen')# always index 0
+                         #'aeroplane', 'bicycle', 'bird', 'boat',
+                         #'bottle', 'bus', 'car', 'cat', 'chair',
+                         #'cow', 'diningtable', 'dog', 'horse',
+                         #'motorbike', 'person', 'pottedplant',
+                         #'sheep', 'sofa', 'train', 'tvmonitor')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
@@ -186,18 +185,18 @@ class pascal_voc(imdb):
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
-        if not self.config['use_diff']:
+        #if not self.config['use_diff']:
             # Exclude the samples labeled as difficult
-            non_diff_objs = [
-                obj for obj in objs if int(obj.find('difficult').text) == 0]
+        #    non_diff_objs = [
+        #        obj for obj in objs if int(obj.find('difficult').text) == 0]
+        #    print non_diff_objs
             # if len(non_diff_objs) != len(objs):
             #     print 'Removed {} difficult objects'.format(
             #         len(objs) - len(non_diff_objs))
-            objs = non_diff_objs
+        #    objs = non_diff_objs
         num_objs = len(objs)
-        M = cfg.TRAIN.MASK_RCNN_SIZE
+        #print num_objs
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
-        mask_targets = np.zeros((num_objs,M,M), dtype=np.float32)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
         # "Seg" area for pascal is just the box area
@@ -205,19 +204,24 @@ class pascal_voc(imdb):
 
         # Load object bounding boxes into a data frame.
         for ix, obj in enumerate(objs):
+            class_name = obj.find('name').text.lower().strip()
+            #print class_name
+            if not class_name in self._classes:
+               continue 
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
             x1 = float(bbox.find('xmin').text) - 1
             y1 = float(bbox.find('ymin').text) - 1
             x2 = float(bbox.find('xmax').text) - 1
             y2 = float(bbox.find('ymax').text) - 1
-            cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+            #cls = self._class_to_ind[obj.find('name').text.lower().strip()]           
+            cls = self._class_to_ind[class_name]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
-            
-            w = x2 - x1
+			
+			w = x2 - x1
             h = y2 - y1
             mask_target = np.zeros((h,w), dtype=np.float32)
             if cfg.TRAIN.MASK_RCNN:
@@ -239,13 +243,18 @@ class pascal_voc(imdb):
                 mask_targets[ix, :] = mask_target
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
-
-        return {'boxes' : boxes,
+        if cfg.TRAIN.MASK_RCNN:
+		    return {'boxes' : boxes,
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,
                 'flipped' : False,
                 'seg_areas' : seg_areas,
                 'mask_targets': mask_targets}
+        return {'boxes' : boxes,
+                'gt_classes': gt_classes,
+                'gt_overlaps' : overlaps,
+                'flipped' : False,
+                'seg_areas' : seg_areas}
 
     def _get_comp_id(self):
         comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']
