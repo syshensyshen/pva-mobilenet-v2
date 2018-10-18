@@ -206,9 +206,9 @@ class pascal_voc(imdb):
         for ix, obj in enumerate(objs):
             class_name = obj.find('name').text.lower().strip()
             #print class_name
-			if cfg.TRAIN.USE_NON_LABELS:
+	    if cfg.TRAIN.USE_NON_LABELS:
                 if not class_name in self._classes:
-			        continue 
+		    continue 
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
             x1 = float(bbox.find('xmin').text) - 1
