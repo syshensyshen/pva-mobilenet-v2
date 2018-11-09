@@ -23,7 +23,7 @@ class ProposalTargetLayer(caffe.Layer):
     """
 
     def setup(self, bottom, top):
-        layer_params = yaml.load(self.param_str_)
+        layer_params = yaml.load(self.param_str)
         self._num_classes = layer_params['num_classes']
 
         # sampled rois (0, x1, y1, x2, y2)
@@ -38,7 +38,8 @@ class ProposalTargetLayer(caffe.Layer):
         top[4].reshape(1, self._num_classes * 4)
         if cfg.TRAIN.MASK_RCNN:
             # mask_targets
-            top[5].reshape(1,self._num_classes-1,cfg.TRAIN.MASK_RCNN_SIZE,cfg.MASK_SIZE)
+            # print self._num_classes, cfg.TRAIN.MASK_RCNN_SIZE
+            top[5].reshape(1,self._num_classes-1,cfg.TRAIN.MASK_RCNN_SIZE,cfg.TRAIN.MASK_RCNN_SIZE)
 
 
     def forward(self, bottom, top):
@@ -51,7 +52,9 @@ class ProposalTargetLayer(caffe.Layer):
         gt_boxes = bottom[1].data
         if cfg.TRAIN.MASK_RCNN:
             #gt_masks;
-            gt_masks = bottom[2].data
+            gt_keypoints = bottom[2].data
+        else:
+            gt_keypoints = 0
 
         # Include ground-truth boxes in the set of candidate rois
         zeros = np.zeros((gt_boxes.shape[0], 1), dtype=gt_boxes.dtype)
@@ -72,7 +75,7 @@ class ProposalTargetLayer(caffe.Layer):
         # targets
         
         labels, rois, bbox_targets, bbox_inside_weights,mask_targets = _sample_rois(
-            all_rois, gt_boxes, gt_masks,gt_keypoints,fg_rois_per_image,
+            all_rois, gt_boxes, gt_keypoints,fg_rois_per_image,
             rois_per_image, self._num_classes)
 
         if DEBUG:
@@ -194,7 +197,13 @@ def _sample_rois(all_rois, gt_boxes,gt_masks,fg_rois_per_image, rois_per_image, 
             np.ascontiguousarray(gt_boxes[:, :4], dtype=np.float))
         gt_assignment = overlaps.argmax(axis=1)
         max_overlaps = overlaps.max(axis=1)
+        roi_labels = gt_boxes[gt_assignment]
         labels = gt_boxes[gt_assignment, 4]
+        #print labels
+        #print roi_labels
+        #print max_overlaps
+        #print all_rois.shape,gt_boxes.shape
+        #raw_input()
     
         # Select foreground RoIs as those with >= FG_THRESH overlap
         fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
@@ -232,36 +241,31 @@ def _sample_rois(all_rois, gt_boxes,gt_masks,fg_rois_per_image, rois_per_image, 
             _get_bbox_regression_labels(bbox_target_data, num_classes)
     if cfg.TRAIN.MASK_RCNN:
         keep_assingment_inds = gt_assignment[keep_inds]
+        gt_mask_boxes = gt_boxes[keep_assingment_inds]
         M = cfg.TRAIN.MASK_RCNN_SIZE
         mask_targets = np.zeros((len(labels),num_classes-1,M,M), dtype=np.float32)
         mask_targets[:,:,:,:] = -1   
 
         for i in np.arange(len(labels)):
-            if labels[i] <= 0:
-                x1 = rois[i, 1]
-                y1 = rois[i, 2]
-                x2 = rois[i, 3]
-                y2 = rois[i, 4]
+            if labels[i] >= 0:
+                x1 = gt_mask_boxes[i, 0]
+                y1 = gt_mask_boxes[i, 1]
+                x2 = gt_mask_boxes[i, 2]
+                y2 = gt_mask_boxes[i, 3]
                 j = int(labels[i])
-               # print x1,y1,x2,y2
-                #gt_mask = mask_targets[i,int(original_labels[i]),:,:]
-                gt_mask = gt_masks[keep_assingment_inds[i],:,:]
-                bbox = bboxes[i, :4]
-                # gt_mask = cv2.resize(gt_mask, (image.shape[2], image.shape[1]),interpolation=cv2.INTER_CUBIC)
-                # all_mask_targets[i, j, :, :] = -1
-                # mask = np.zeros((np.round(y2 - y1).astype(np.int), np.round(x2 - x1).astype(np.int)), dtype=np.float32)
-                # mask[:, :] = 0
-                # width = mask.shape[1]
-                # height = mask.shape[0]
-                
-                mask_roi =gt_mask[np.round(y1).astype(np.int):np.round(y2).astype(np.int),np.round(x1).astype(np.int):np.round(x2).astype(np.int)]
-                # mask = np.zeros((np.round(y2 - y1).astype(np.int), np.round(x2 - x1).astype(np.int)), dtype=np.float32)
-                # mask[:, :] = 0
-                # width = mask.shape[1]
-                # height = mask.shape[0]
-                if (int(bbox[2]) - int(bbox[0])) <= 0 or (int(bbox[3]) - int(bbox[1])) <= 0 or bbox[2] < 0 or bbox[
-                    0] < 0 or bbox[1] < 0 or bbox[3] < 0:
-                    # resized_mask = cv2.resize(mask, (28, 28), interpolation=cv2.INTER_CUBIC)
+
+                start_y = np.round(y1).astype(np.int)
+		end_y = np.round(y2).astype(np.int)
+		start_x = np.round(x1).astype(np.int)
+		end_x = np.round(x2).astype(np.int)
+                #mask_roi = gt_masks[:, :, start_y:end_y,start_x:end_x]
+                #print mask_roi.shape
+                #for test in mask_roi:
+                #    for t1 in test:
+                #        for t2 in t1:
+                #            print t2
+                #raw_input()
+                if (end_y - start_y <= 0 or end_x - start_x <= 0 or start_x < 0 or start_y < 0 or end_x < 0 or end_y < 0):
                     mask_targets[i, j-1, :, :] = -1
                     continue
                 
@@ -269,20 +273,29 @@ def _sample_rois(all_rois, gt_boxes,gt_masks,fg_rois_per_image, rois_per_image, 
                     mask_targets[i, j-1, :, :] = -1
                     continue
                 
-                if mask_roi.shape[0] <=0 or mask_roi.shape[1] <=0:
-                    mask_targets[i, j-1, :, :] = -1
-                    continue
-               
-                resized_mask = cv2.resize(mask_roi, (M,M), interpolation=cv2.INTER_CUBIC)
+                #if mask_roi.shape[0] <=0 or mask_roi.shape[1] <=0:
+                #    mask_targets[i, j-1, :, :] = -1
+                #    continue
+                mask_roi = gt_masks[:, :, start_y:end_y,start_x:end_x]
+                other_label_index = np.where(mask_roi != j)[0]
+                mask_roi[other_label_index] = 0
+                other_label_index = np.where(mask_roi == j)[0]
+                #print len(other_label_index)
+                mask_roi[other_label_index] = 255
+                resized_mask = cv2.resize(mask_roi, (M,M))#, interpolation=cv2.INTER_CUBIC)
                 resized_mask = np.round(resized_mask)
-                
+                test = np.where(resized_mask == 255)[0]
+                resized_mask[test] = j 
+                #print resized_mask.shape, mask_roi.shape, len(test)
+                #raw_input() 
                 mask_targets[i, j-1, :, :] = resized_mask   
                 
             else:
-                mask_targets[i, j-1, :, :] = -1
+                mask_targets[i, :, :, :] = -1
                 kps_labels[i,:] = -1
 
    
     if not cfg.TRAIN.MASK_RCNN:
         mask_targets = 0
     return labels, rois, bbox_targets, bbox_inside_weights, mask_targets
+

@@ -106,8 +106,6 @@ class RoIDataLayer(caffe.Layer):
             self._name_to_top_map['gt_boxes'] = idx
             idx += 1
             if cfg.TRAIN.MASK_RCNN:
-                M = cfg.TRAIN.MASK_RCNN_SIZE
-                top[idx].reshape(1,M,M)
                 self._name_to_top_map['gt_masks'] = idx
                 idx += 1
         else: # not using RPN
@@ -199,3 +197,4 @@ class BlobFetcher(Process):
             minibatch_db = [self._roidb[i] for i in db_inds]
             blobs = get_minibatch(minibatch_db, self._num_classes)
             self._queue.put(blobs)
+

@@ -27,7 +27,7 @@ class pascal_voc(imdb):
         self._devkit_path = self._get_default_path() if devkit_path is None \
                             else devkit_path
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
-        self._classes = ('__background__', 'huahen')# always index 0
+        self._classes = ('__background__', 'thread')# always index 0
                          #'aeroplane', 'bicycle', 'bird', 'boat',
                          #'bottle', 'bus', 'car', 'cat', 'chair',
                          #'cow', 'diningtable', 'dog', 'horse',
@@ -203,12 +203,13 @@ class pascal_voc(imdb):
         seg_areas = np.zeros((num_objs), dtype=np.float32)
 
         # Load object bounding boxes into a data frame.
+	key_points = []
         for ix, obj in enumerate(objs):
             class_name = obj.find('name').text.lower().strip()
             #print class_name
-			if cfg.TRAIN.USE_NON_LABELS:
+            if cfg.TRAIN.USE_NON_LABELS:
                 if not class_name in self._classes:
-			        continue 
+                   continue 
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
             x1 = float(bbox.find('xmin').text) - 1
@@ -221,36 +222,23 @@ class pascal_voc(imdb):
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
-			
-			w = x2 - x1
-            h = y2 - y1
-            mask_target = np.zeros((h,w), dtype=np.float32)
             if cfg.TRAIN.MASK_RCNN:
                 shape = obj.find('shape')
                 points = shape.find('points')
-                key_points = []
+                key_point=[]        
                 for point in points:
-                    key_point.append(point.text)
-                    key_points.append(np.int32(key_point))
-                key_points = np.array(key_points, np.int32)
-                key_points = key_points.reshape((2, -1))
-                for i in range(0, h):
-                    for j in range(0, w):
-                        if cv2.PointPolygonTest(key_points, (i,j)):
-                            mask_target[i,j] = 1
-                        else:
-                            mask_target[i,j] = 0
-                mask_target =  np.round(cv2.resize(mask_targets, (M,M), interpolation=cv2.INTER_CUBIC))
-                mask_targets[ix, :] = mask_target
-
+                    num = np.int32(point.text)
+                    key_point.append(num)
+                key_points.append(key_point)
         overlaps = scipy.sparse.csr_matrix(overlaps)
+        
         if cfg.TRAIN.MASK_RCNN:
 		    return {'boxes' : boxes,
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,
                 'flipped' : False,
                 'seg_areas' : seg_areas,
-                'mask_targets': mask_targets}
+                'key_points': key_points}
         return {'boxes' : boxes,
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,
@@ -376,3 +364,4 @@ if __name__ == '__main__':
     d = pascal_voc('trainval', '2007')
     res = d.roidb
     from IPython import embed; embed()
+
