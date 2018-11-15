@@ -135,7 +135,9 @@ class AnchorTargetLayer(caffe.Layer):
             np.ascontiguousarray(gt_boxes, dtype=np.float))
         h,w = gt_boxes.shape
         use_non_label = h == 0 or w == 0
-        if use_non_label and cfg.TRAIN.USE_NON_LABELS:
+        #print gt_boxes.shape
+        #raw_input()
+        if use_non_label:
             #labels[:] = 0
             invalied_inds = np.where(labels == -1)[0]
             neg_inds = npr.choice(
@@ -145,13 +147,14 @@ class AnchorTargetLayer(caffe.Layer):
             bbox_inside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32) 
             bbox_outside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
             # map up to original set of anchors
-            labels = _unmap(labels, total_anchors, inds_inside, fill=-1)
-            bbox_targets = _unmap(bbox_targets, total_anchors, inds_inside, fill=0)
-            bbox_inside_weights = _unmap(bbox_inside_weights, total_anchors, inds_inside, fill=0)
-            bbox_outside_weights = _unmap(bbox_outside_weights, total_anchors, inds_inside, fill=0) 
+            #labels = _unmap(labels, total_anchors, inds_inside, fill=-1)
+            #bbox_targets = _unmap(bbox_targets, total_anchors, inds_inside, fill=0)
+            #bbox_inside_weights = _unmap(bbox_inside_weights, total_anchors, inds_inside, fill=0)
+            #bbox_outside_weights = _unmap(bbox_outside_weights, total_anchors, inds_inside, fill=0) 
             # labels
             labels = labels.reshape((1, height, width, A)).transpose(0, 3, 1, 2)
             labels = labels.reshape((1, 1, A * height, width))
+            #print A, labels.shape, bbox_targets.shape, bbox_inside_weights.shape, bbox_outside_weights.shape
             top[0].reshape(*labels.shape)
             top[0].data[...] = labels
             
@@ -177,7 +180,10 @@ class AnchorTargetLayer(caffe.Layer):
             top[3].reshape(*bbox_outside_weights.shape)
             top[3].data[...] = bbox_outside_weights
             
-        else:                            
+        else:     		
+            #gt_boxes_tmp = np.int32(gt_boxes)
+            #print gt_boxes_tmp
+            #raw_input()
             argmax_overlaps = overlaps.argmax(axis=1)
             max_overlaps = overlaps[np.arange(len(inds_inside)), argmax_overlaps]
             gt_argmax_overlaps = overlaps.argmax(axis=0)
@@ -269,6 +275,8 @@ class AnchorTargetLayer(caffe.Layer):
             # labels
             labels = labels.reshape((1, height, width, A)).transpose(0, 3, 1, 2)
             labels = labels.reshape((1, 1, A * height, width))
+            #print A, labels.shape, bbox_targets.shape, bbox_inside_weights.shape, bbox_outside_weights.shape
+            #raw_input()
             top[0].reshape(*labels.shape)
             top[0].data[...] = labels
     
@@ -325,3 +333,4 @@ def _compute_targets(ex_rois, gt_rois):
     assert gt_rois.shape[1] == 5
 
     return bbox_transform(ex_rois, gt_rois[:, :4]).astype(np.float32, copy=False)
+

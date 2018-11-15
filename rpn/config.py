@@ -37,7 +37,7 @@ __C.TRAIN = edict()
 # Each scale is the pixel size of an image's shortest side
 __C.TRAIN.SCALES = (600,)
 
-__C.TRAIN.MASK_RCNN = True
+__C.TRAIN.MASK_RCNN = False
 __C.TRAIN.USE_NON_LABELS = False
 __C.TRAIN.MASK_RCNN_SIZE = 14
 
@@ -51,7 +51,7 @@ __C.TRAIN.MAX_SIZE = 1000
 __C.TRAIN.IMS_PER_BATCH = 2
 
 # Minibatch size (number of regions of interest [ROIs])
-__C.TRAIN.BATCH_SIZE = 64
+__C.TRAIN.BATCH_SIZE = 256
 
 # Fraction of minibatch that is labeled foreground (i.e. class > 0)
 __C.TRAIN.FG_FRACTION = 0.25
@@ -121,7 +121,7 @@ __C.TRAIN.RPN_NMS_THRESH = 0.7
 # Number of top scoring boxes to keep before apply NMS to RPN proposals
 __C.TRAIN.RPN_PRE_NMS_TOP_N = 12000
 # Number of top scoring boxes to keep after applying NMS to RPN proposals
-__C.TRAIN.RPN_POST_NMS_TOP_N = 1000
+__C.TRAIN.RPN_POST_NMS_TOP_N = 2000
 # Proposal height and width both need to be greater than RPN_MIN_SIZE (at orig image scale)
 __C.TRAIN.RPN_MIN_SIZE = 16
 # Deprecated (outside weights)

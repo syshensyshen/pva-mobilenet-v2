@@ -28,19 +28,22 @@ def get_minibatch(roidb, num_classes):
     fg_rois_per_image = np.round(cfg.TRAIN.FG_FRACTION * rois_per_image)
     
     # Get the input image blob, formatted for caffe
-    if cfg.TRAIN.MASK_RCNN:
-        im_blob,mask_blob,im_scales = _get_image_blob(roidb, random_scale_inds)  
-    else:
-        im_blob, im_scales = _get_image_blob(roidb, random_scale_inds)
+    #if cfg.TRAIN.MASK_RCNN:
+    #    im_blob,mask_blob,im_scales = _get_image_blob(roidb, random_scale_inds)  
+    #else:
+    #    im_blob, im_scales = _get_image_blob(roidb, random_scale_inds)
+    im_blob, im_scales = _get_image_blob(roidb, random_scale_inds)
 
     blobs = {'data': im_blob}
-    if cfg.TRAIN.MASK_RCNN:
-        blobs['gt_masks'] = mask_blob #new add for image mask 
+    #if cfg.TRAIN.MASK_RCNN:
+    #    blobs['gt_masks'] = mask_blob #new add for image mask 
 
     if cfg.TRAIN.HAS_RPN:
         assert len(im_scales) == 1, "Single batch only"
         assert len(roidb) == 1, "Single batch only"
         # gt boxes: (x1, y1, x2, y2, cls)
+        #print roidb[0]
+        #raw_input()
         gt_inds = np.where(roidb[0]['gt_classes'] != 0)[0]
         gt_boxes = np.empty((len(gt_inds), 5), dtype=np.float32)
         gt_boxes[:, 0:4] = roidb[0]['boxes'][gt_inds, :] * im_scales[0]
@@ -49,6 +52,8 @@ def get_minibatch(roidb, num_classes):
         blobs['im_info'] = np.array(
             [np.hstack((im_blob.shape[2], im_blob.shape[3], im_scales[0]))],
             dtype=np.float32)
+        if cfg.TRAIN.MASK_RCNN:
+           blobs['gt_masks'] = roidb[0]['mask_targets'] #new add for image mask
     else: # not using RPN
         # Now, build the region of interest and label blobs
         rois_blob = np.zeros((0, 5), dtype=np.float32)
@@ -174,8 +179,8 @@ def _get_image_blob(roidb, scale_inds):
     """Builds an input blob from the images in the roidb at the specified
     scales.
     """
-    if cfg.TRAIN.MASK_RCNN:
-        mask_size = 1####h,w scale new add
+    #if cfg.TRAIN.MASK_RCNN:
+    #    mask_size = 1####h,w scale new add
     processed_masks = []
     num_images = len(roidb)
     processed_ims = []
@@ -185,8 +190,8 @@ def _get_image_blob(roidb, scale_inds):
     for i in xrange(num_images):
         
         im = cv2.imread(roidb[i]['image'])
-        key_points = roidb[i]['key_points']
-        kpt_classes = roidb[i]['gt_classes']
+        #key_points = roidb[i]['mask_targets']
+        #kpt_classes = roidb[i]['gt_classes']
         #print len(roidb[i]['key_points'])
         #print roidb[i]['gt_classes'].shape
         #print roidb[i]['key_points']
@@ -198,23 +203,24 @@ def _get_image_blob(roidb, scale_inds):
         ####new add
         im_scales.append(im_scale)        
         name = roidb[i]['image'].split('/')[-1]
-        if cfg.TRAIN.MASK_RCNN:
-            mask_img_shape = (im.shape[0]/mask_size,im.shape[1]/mask_size)
-            mask_image = _mask_image(mask_img_shape, key_points,kpt_classes,im_scale,mask_size, False)
-            if roidb[i]['flipped']:             
-                mask_image = mask_image[:, ::-1]
-                #processed_masks.append(mask_image)
-                #mask_blob = mask_list_to_blob(processed_masks)
-        ####new add
+        #if cfg.TRAIN.MASK_RCNN:
+        #    mask_img_shape = (im.shape[0]/mask_size,im.shape[1]/mask_size)
+        #    mask_image = _mask_image(mask_img_shape, key_points,kpt_classes,im_scale,mask_size, False)
+        #    if roidb[i]['flipped']:             
+        #        mask_image = mask_image[:, ::-1]
+        #        #processed_masks.append(mask_image)
+        #        #mask_blob = mask_list_to_blob(processed_masks)
+        #####new add
         processed_ims.append(im)
     # Create a blob to hold the input images    
     blob = im_list_to_blob(processed_ims)
-    if cfg.TRAIN.MASK_RCNN:
-        processed_masks.append(mask_image)
-        mask_blob = mask_list_to_blob(processed_masks)
-        return blob, mask_blob,im_scales #return blob,im_scales
-    else:
-         return blob, im_scales #return blob,im_scales
+    #if cfg.TRAIN.MASK_RCNN:
+    #    processed_masks.append(mask_image)
+    #    mask_blob = mask_list_to_blob(processed_masks)
+    #    return blob, mask_blob,im_scales #return blob,im_scales
+    #else:
+    #     return blob, im_scales #return blob,im_scales
+    return blob, im_scales #return blob,im_scales
 
 def _project_im_rois(im_rois, im_scale_factor):
     """Project image RoIs into the rescaled training image."""

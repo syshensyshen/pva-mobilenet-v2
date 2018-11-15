@@ -104,6 +104,14 @@ class imdb(object):
         widths = self._get_widths()
         for i in xrange(num_images):
             boxes = self.roidb[i]['boxes'].copy()
+            import copy
+            mask_targets = self.roidb[i]['mask_targets'].copy()
+            for index in range(mask_targets.shape[0]):
+                import cv2
+                cv2.imwrite('/home/face/Documents/syshen/pva-faster-rcnn/fpn/test1.jpg', mask_targets[index,:]) 
+                mask_targets[index,:]=cv2.flip(mask_targets[index,:],1)
+                cv2.imwrite('/home/face/Documents/syshen/pva-faster-rcnn/fpn/test2.jpg', mask_targets[index,:]) 
+            #raw_input()
             oldx1 = boxes[:, 0].copy()
             oldx2 = boxes[:, 2].copy()
             boxes[:, 0] = widths[i] - oldx2 #- 1
@@ -113,7 +121,7 @@ class imdb(object):
                      'gt_overlaps' : self.roidb[i]['gt_overlaps'],
                      'gt_classes' : self.roidb[i]['gt_classes'],
                      'flipped' : True,
-                     'key_points': self.roidb[i]['key_points']}
+                     'mask_targets': mask_targets}
             self.roidb.append(entry)
         self._image_index = self._image_index * 2
 

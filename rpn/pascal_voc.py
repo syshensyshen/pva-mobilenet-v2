@@ -185,7 +185,7 @@ class pascal_voc(imdb):
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
-        if not self.config['use_diff'] and not cfg.TRAIN.USE_NON_LABELS:
+        if not self.config['use_diff']:
             # Exclude the samples labeled as difficult
             non_diff_objs = [
                 obj for obj in objs if int(obj.find('difficult').text) == 0]
@@ -203,33 +203,77 @@ class pascal_voc(imdb):
         seg_areas = np.zeros((num_objs), dtype=np.float32)
 
         # Load object bounding boxes into a data frame.
-	key_points = []
+        key_points = []
+        im_info = tree.find('size')
+        width = im_info.find('width').text
+        height = im_info.find('height').text
         for ix, obj in enumerate(objs):
             class_name = obj.find('name').text.lower().strip()
             #print class_name
-            if cfg.TRAIN.USE_NON_LABELS:
-                if not class_name in self._classes:
-                   continue 
+            
+            if not class_name in self._classes:
+                continue 
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            x1 = float(bbox.find('xmin').text) #- 1
+            y1 = float(bbox.find('ymin').text) #- 1
+            x2 = float(bbox.find('xmax').text) #- 1
+            y2 = float(bbox.find('ymax').text) #- 1
             #cls = self._class_to_ind[obj.find('name').text.lower().strip()]           
             cls = self._class_to_ind[class_name]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+            def polygons_to_mask(img_shape, polygons):
+                mask = np.zeros(img_shape[:2], dtype=np.uint8)
+                from PIL import Image
+                from PIL import ImageDraw
+                mask = Image.fromarray(mask)
+                xy = list(map(tuple, polygons))
+                ImageDraw.Draw(mask).polygon(xy=xy, outline=255, fill=255)
+                #test = np.array(mask, dtype=np.uint8)
+                #for rows in test:
+                #    print rows
+                mask = np.array(mask, dtype=np.uint8)#np.array(mask, dtype=bool)
+                return mask
             if cfg.TRAIN.MASK_RCNN:
+                M = cfg.TRAIN.MASK_RCNN_SIZE
+                mask_targets = np.zeros((num_objs, M, M), dtype=np.uint16)
                 shape = obj.find('shape')
                 points = shape.find('points')
                 key_point=[]        
                 for point in points:
-                    num = np.int32(point.text)
+                    num = np.int32(point.text) - 1
                     key_point.append(num)
-                key_points.append(key_point)
+                key_point = np.array(key_point, np.int32)
+                key_point = key_point.reshape((-1, 2))
+                key_point[:,0] = key_point[:,0] - x1
+                key_point[:,1] = key_point[:,1] - y1
+                maskw = x2-x1+1
+                maskh = y2-y1+1
+                mask_target=polygons_to_mask((maskh,maskw), key_point)
+                #print mask_target
+                #print key_point
+                #M = cfg.TRAIN.MASK_RCNN_SIZE
+                #maskw = x2-x1+1
+                #maskh = y2-y1+1
+                #mask_target = np.zeros((maskh,maskw), dtype=np.int32)
+                import cv2
+                #contours = key_point.reshape((-1,1,2))
+                #cv2.drawContours(mask_target, contours, -1, (255,255,255), cv2.FILLED)
+                #for rows in range(int(maskh)):
+                #    for cols in range(int(maskw)):
+                #        if cv2.pointPolygonTest(contours, (cols,rows), True):
+                #           mask_target[rows,cols] = 255;
+                #cv2.imwrite('/home/face/Documents/syshen/pva-faster-rcnn/fpn/test.jpg', mask_target) 
+                #raw_input()
+                mask_target=cv2.resize(mask_target, (M,M), interpolation=cv2.INTER_CUBIC)				
+                #cv2.imwrite('/home/face/Documents/syshen/pva-faster-rcnn/fpn/test.jpg', mask_target) 				
+                mask_targets[ix,:]=mask_target
+                #print mask_targets.shape
+                #raw_input()				
+				
         overlaps = scipy.sparse.csr_matrix(overlaps)
         
         if cfg.TRAIN.MASK_RCNN:
@@ -238,7 +282,7 @@ class pascal_voc(imdb):
                 'gt_overlaps' : overlaps,
                 'flipped' : False,
                 'seg_areas' : seg_areas,
-                'key_points': key_points}
+                'mask_targets': mask_targets}
         return {'boxes' : boxes,
                 'gt_classes': gt_classes,
                 'gt_overlaps' : overlaps,

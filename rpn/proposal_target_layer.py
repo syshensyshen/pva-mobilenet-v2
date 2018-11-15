@@ -165,13 +165,13 @@ def _compute_targets(ex_rois, gt_rois, labels):
     return np.hstack(
             (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
 
-def _sample_rois(all_rois, gt_boxes,gt_masks,fg_rois_per_image, rois_per_image, num_classes):
+def _sample_rois(all_rois, gt_boxes,keypoints,fg_rois_per_image, rois_per_image, num_classes):
     """Generate a random sample of RoIs comprising foreground and background
     examples.
     """
     h,w = gt_boxes.shape[:2]
-    use_non_label = h == 0 or w == 0
-    if use_non_label and cfg.TRAIN.USE_NON_LABELS:
+    use_non_label = (h == 0 or w == 0)
+    if use_non_label:
         dim_labels = all_rois.shape[0]
         #print dim_labels
         labels = np.zeros((dim_labels,))
@@ -186,11 +186,15 @@ def _sample_rois(all_rois, gt_boxes,gt_masks,fg_rois_per_image, rois_per_image, 
     
         bbox_targets, bbox_inside_weights = \
             _get_bbox_regression_labels(bbox_target_data, num_classes)
+        if cfg.TRAIN.MASK_RCNN:
+           M = cfg.TRAIN.MASK_RCNN_SIZE
+           mask_targets = np.zeros((len(labels),num_classes-1,M,M), dtype=np.float32)
+           mask_targets[:,:,:,:] = -1
+        else:
+           mask_targets = 0
+        return labels, rois, bbox_targets, bbox_inside_weights, mask_targets 
     
-        return labels, rois, bbox_targets, bbox_inside_weights  
-    
-    else: 
-        
+    else:         
         # overlaps: (rois x gt_boxes)
         overlaps = bbox_overlaps(
             np.ascontiguousarray(all_rois[:, 1:5], dtype=np.float),
@@ -233,68 +237,64 @@ def _sample_rois(all_rois, gt_boxes,gt_masks,fg_rois_per_image, rois_per_image, 
         # Clamp labels for the background RoIs to 0
         labels[fg_rois_per_this_image:] = 0
         rois = all_rois[keep_inds]
+        print cfg.TRAIN.BATCH_SIZE
+        raw_input()
     
         bbox_target_data = _compute_targets(
             rois[:, 1:5], gt_boxes[gt_assignment[keep_inds], :4], labels)
     
         bbox_targets, bbox_inside_weights = \
             _get_bbox_regression_labels(bbox_target_data, num_classes)
-    if cfg.TRAIN.MASK_RCNN:
-        keep_assingment_inds = gt_assignment[keep_inds]
-        gt_mask_boxes = gt_boxes[keep_assingment_inds]
-        M = cfg.TRAIN.MASK_RCNN_SIZE
-        mask_targets = np.zeros((len(labels),num_classes-1,M,M), dtype=np.float32)
-        mask_targets[:,:,:,:] = -1   
+        if cfg.TRAIN.MASK_RCNN:
+            keep_assingment_inds = gt_assignment[keep_inds]
+            gt_mask_boxes = gt_boxes[keep_assingment_inds]
+            #print len(keypoints), len(keypoints[0]), len(keypoints[0][0])
+            #raw_input()
+            key_points_assign = keypoints[keep_assingment_inds].copy()
+            #print key_points_assign.shape
+            #raw_input()
+            M = cfg.TRAIN.MASK_RCNN_SIZE
+            mask_targets = np.zeros((len(labels),num_classes-1,M,M), dtype=np.float32)
+            mask_targets[:,:,:,:] = -1   
+            
+            for i in np.arange(len(labels)):
+                if labels[i] >= 0:
+                    x1 = gt_mask_boxes[i, 0]
+                    y1 = gt_mask_boxes[i, 1]
+                    x2 = gt_mask_boxes[i, 2]
+                    y2 = gt_mask_boxes[i, 3]
+                    j = int(labels[i])
+                    
+                    start_y = np.int32(y1)
+                    end_y   = np.int32(y2)
+                    start_x = np.int32(x1)
+                    end_x   = np.int32(x2)
+                    #mask_roi = gt_masks[:, :, start_y:end_y,start_x:end_x]
+                    #print mask_roi.shape
+                    #for test in mask_roi:
+                    #    for t1 in test:
+                    #        for t2 in t1:
+                    #            print t2
+                    #raw_input()
+                    if (end_y - start_y <= 0 or end_x - start_x <= 0 or 
+                        start_x < 0 or start_y < 0 or end_x < 0 or end_y < 0):
+                        mask_targets[i, j-1, :, :] = -1
+                        continue
+                    
+                    if y2 - y1 <= 0 or x2 - x1 <= 0:
+                       mask_targets[i, j-1, :, :] = -1
+                       continue
+                    key_point_assign = key_points_assign[i]
+                    non_zeros_index = np.where(key_point_assign > 0)[0]
+                    key_point_assign[non_zeros_index] = j 
+                    mask_targets[i, j-1, :, :] = key_point_assign   
+                    #print key_point_assign
+                    #raw_input()
+                else:
+                    mask_targets[i, :, :, :] = -1
 
-        for i in np.arange(len(labels)):
-            if labels[i] >= 0:
-                x1 = gt_mask_boxes[i, 0]
-                y1 = gt_mask_boxes[i, 1]
-                x2 = gt_mask_boxes[i, 2]
-                y2 = gt_mask_boxes[i, 3]
-                j = int(labels[i])
-
-                start_y = np.round(y1).astype(np.int)
-		end_y = np.round(y2).astype(np.int)
-		start_x = np.round(x1).astype(np.int)
-		end_x = np.round(x2).astype(np.int)
-                #mask_roi = gt_masks[:, :, start_y:end_y,start_x:end_x]
-                #print mask_roi.shape
-                #for test in mask_roi:
-                #    for t1 in test:
-                #        for t2 in t1:
-                #            print t2
-                #raw_input()
-                if (end_y - start_y <= 0 or end_x - start_x <= 0 or start_x < 0 or start_y < 0 or end_x < 0 or end_y < 0):
-                    mask_targets[i, j-1, :, :] = -1
-                    continue
-                
-                if (np.round(y2 - y1).astype(np.int) <= 0) or (np.round(x2 - x1).astype(np.int)) <= 0:
-                    mask_targets[i, j-1, :, :] = -1
-                    continue
-                
-                #if mask_roi.shape[0] <=0 or mask_roi.shape[1] <=0:
-                #    mask_targets[i, j-1, :, :] = -1
-                #    continue
-                mask_roi = gt_masks[:, :, start_y:end_y,start_x:end_x]
-                other_label_index = np.where(mask_roi != j)[0]
-                mask_roi[other_label_index] = 0
-                other_label_index = np.where(mask_roi == j)[0]
-                #print len(other_label_index)
-                mask_roi[other_label_index] = 255
-                resized_mask = cv2.resize(mask_roi, (M,M))#, interpolation=cv2.INTER_CUBIC)
-                resized_mask = np.round(resized_mask)
-                test = np.where(resized_mask == 255)[0]
-                resized_mask[test] = j 
-                #print resized_mask.shape, mask_roi.shape, len(test)
-                #raw_input() 
-                mask_targets[i, j-1, :, :] = resized_mask   
-                
-            else:
-                mask_targets[i, :, :, :] = -1
-                kps_labels[i,:] = -1
-
-   
+    #print mask_targets
+    #raw_input()
     if not cfg.TRAIN.MASK_RCNN:
         mask_targets = 0
     return labels, rois, bbox_targets, bbox_inside_weights, mask_targets

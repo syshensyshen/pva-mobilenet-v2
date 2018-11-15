@@ -54,11 +54,11 @@ def bbox_transform_inv(boxes, deltas):
     dw = deltas[:, 2::4]
     dh = deltas[:, 3::4]
 
-    index = np.where(dw <= 0.0)[0]
-    dw[index] = 1.0
-
-    index = np.where(dh <= 0.0)[0]
-    dh[index] = 1.0
+    #index = np.where(dw <= 0.0)[0]
+    #dw[index] = 1.0
+    #
+    #index = np.where(dh <= 0.0)[0]
+    #dh[index] = 1.0
     
 
     pred_ctr_x = dx * widths[:, np.newaxis] + ctr_x[:, np.newaxis]
@@ -92,3 +92,4 @@ def clip_boxes(boxes, im_shape):
     # y2 < im_shape[0]
     boxes[:, 3::4] = np.maximum(np.minimum(boxes[:, 3::4], im_shape[0] - 1), 0)
     return boxes
+
