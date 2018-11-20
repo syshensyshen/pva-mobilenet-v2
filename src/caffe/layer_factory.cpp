@@ -143,8 +143,8 @@ shared_ptr<Layer<Dtype> > GetBatchNormLayer(
 	}
 	else if (engine == BatchNormParameter_Engine_CUDNN) {
 		return shared_ptr<Layer<Dtype> >(new CuDNNBatchNormLayer<Dtype>(param));
-	}
 #endif
+	}
 	else {
 		LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
 		throw;  // Avoids missing return warning

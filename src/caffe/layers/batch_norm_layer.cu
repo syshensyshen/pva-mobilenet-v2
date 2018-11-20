@@ -7,32 +7,32 @@
 namespace caffe {
 
 	// multicast x[c] into y[.,c,...]
-	template <typename Dtype>
-	void BatchNormLayer<Dtype>::multicast_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
-		caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
-			ones_N_.gpu_data(), x, Dtype(0.),
-			temp_NC_.mutable_gpu_data());
-		caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N*C, S, 1, Dtype(1.),
-			temp_NC_.gpu_data(), ones_HW_.gpu_data(), Dtype(0.), y);
-	}
-
-	// y[c] = sum x(.,c,...)
-	template <typename Dtype>
-	void BatchNormLayer<Dtype>::compute_sum_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
-		caffe_gpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
-			ones_HW_.gpu_data(),
-			Dtype(0.), temp_NC_.mutable_gpu_data());
-		caffe_gpu_gemv<Dtype>(CblasTrans, N, C, Dtype(1.), temp_NC_.gpu_data(),
-			ones_N_.gpu_data(), Dtype(0.), y);
-	}
-
-	// y[c] = mean x(.,c,...)
-	template <typename Dtype>
-	void BatchNormLayer<Dtype>::compute_mean_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
-		Dtype F = 1. / (N * S);
-		compute_sum_per_channel_gpu(N, C, S, x, y);
-		caffe_gpu_scal(C, F, y);
-	}
+	//template <typename Dtype>
+	//void BatchNormLayer<Dtype>::multicast_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+	//	caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
+	//		ones_N_.gpu_data(), x, Dtype(0.),
+	//		temp_NC_.mutable_gpu_data());
+	//	caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N*C, S, 1, Dtype(1.),
+	//		temp_NC_.gpu_data(), ones_HW_.gpu_data(), Dtype(0.), y);
+	//}
+    //
+	//// y[c] = sum x(.,c,...)
+	//template <typename Dtype>
+	//void BatchNormLayer<Dtype>::compute_sum_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+	//	caffe_gpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
+	//		ones_HW_.gpu_data(),
+	//		Dtype(0.), temp_NC_.mutable_gpu_data());
+	//	caffe_gpu_gemv<Dtype>(CblasTrans, N, C, Dtype(1.), temp_NC_.gpu_data(),
+	//		ones_N_.gpu_data(), Dtype(0.), y);
+	//}
+    //
+	//// y[c] = mean x(.,c,...)
+	//template <typename Dtype>
+	//void BatchNormLayer<Dtype>::compute_mean_per_channel_gpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+	//	Dtype F = 1. / (N * S);
+	//	compute_sum_per_channel_gpu(N, C, S, x, y);
+	//	caffe_gpu_scal(C, F, y);
+	//}
 
 
 	template <typename Dtype>

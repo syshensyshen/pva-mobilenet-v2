@@ -7,33 +7,33 @@
 namespace caffe {
 
 	//  multicast x[c] into y[.,c,...]
-	template <typename Dtype>
-	void BatchNormLayer<Dtype>::multicast_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
-		caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
-			ones_N_.cpu_data(), x, Dtype(0.),
-			temp_NC_.mutable_cpu_data());
-		caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N*C, S, 1,
-			Dtype(1.), temp_NC_.cpu_data(), ones_HW_.cpu_data(),
-			Dtype(0.), y);
-	}
-
-	//  y[c] = sum x(.,c,...)
-	template <typename Dtype>
-	void BatchNormLayer<Dtype>::compute_sum_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
-		caffe_cpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
-			ones_HW_.cpu_data(), Dtype(0.),
-			temp_NC_.mutable_cpu_data());
-		caffe_cpu_gemv<Dtype>(CblasTrans, N, C, Dtype(1.), temp_NC_.cpu_data(),
-			ones_N_.cpu_data(), Dtype(0.), y);
-	}
-
-	// y[c] = mean x(.,c,...)
-	template <typename Dtype>
-	void BatchNormLayer<Dtype>::compute_mean_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
-		Dtype F = 1. / (N * S);
-		compute_sum_per_channel_cpu(N, C, S, x, y);
-		caffe_cpu_scale(C, F, y, y);
-	}
+	//template <typename Dtype>
+	//void BatchNormLayer<Dtype>::multicast_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+	//	caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N, C, 1, Dtype(1.),
+	//		ones_N_.cpu_data(), x, Dtype(0.),
+	//		temp_NC_.mutable_cpu_data());
+	//	caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, N*C, S, 1,
+	//		Dtype(1.), temp_NC_.cpu_data(), ones_HW_.cpu_data(),
+	//		Dtype(0.), y);
+	//}
+    //
+	////  y[c] = sum x(.,c,...)
+	//template <typename Dtype>
+	//void BatchNormLayer<Dtype>::compute_sum_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+	//	caffe_cpu_gemv<Dtype>(CblasNoTrans, N * C, S, Dtype(1.), x,
+	//		ones_HW_.cpu_data(), Dtype(0.),
+	//		temp_NC_.mutable_cpu_data());
+	//	caffe_cpu_gemv<Dtype>(CblasTrans, N, C, Dtype(1.), temp_NC_.cpu_data(),
+	//		ones_N_.cpu_data(), Dtype(0.), y);
+	//}
+    //
+	//// y[c] = mean x(.,c,...)
+	//template <typename Dtype>
+	//void BatchNormLayer<Dtype>::compute_mean_per_channel_cpu(int N, int C, int S, const Dtype *x, Dtype *y) {
+	//	Dtype F = 1. / (N * S);
+	//	compute_sum_per_channel_cpu(N, C, S, x, y);
+	//	caffe_cpu_scale(C, F, y, y);
+	//}
 
 	template <typename Dtype>
 	void BatchNormLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
