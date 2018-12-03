@@ -2,7 +2,11 @@ import caffe
 import scipy
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
-
+'''
+this implement by syshen
+using cosine distance for backward
+L2 normal in denominator, but we think this as a number for Derivation
+'''
 class CosineLossLayer(caffe.Layer):
 
     def setup(self, bottom, top):
@@ -42,22 +46,25 @@ class CosineLossLayer(caffe.Layer):
             f1normal = l2normal[first]
             f2normal = l2normal[second]
             normal = f1normal * f2normal
-            if normal == 0:
-                normal = 1.0
+            if f1normal == 0:
+                f1normal = 1
+            if f2normal == 0:
+                f2normal = 1
             f1 = features[first]
             f2 = features[second]
             inner_product = np.sum(features[first] * features[second].T)
             #print np.sum(inner_product)
-            #raw_input()
-            
+            #raw_input()   
+            self.diff[first] = f2 / f1normal
+            self.diff[second] = f1 / f1normal   
+            signal = 1
             if label[first] == label[second]:
                 loss += 1 - inner_product / normal
-                self.diff[first] = - f2 / normal
-                self.diff[second] = - f1 / normal
+                signal = -1
             else:
                 loss += inner_product / normal
-                self.diff[first] = f2 / normal
-                self.diff[second] = f1 / normal           
+            self.diff[first] *= signal
+            self.diff[second] *= signal                           
         top[0].data[...] = np.sum(loss) / n
         #print self.diff
         if np.isnan(top[0].data):
