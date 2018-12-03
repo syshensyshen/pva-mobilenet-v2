@@ -18,7 +18,7 @@ class CosineLossLayer(caffe.Layer):
         if n < 2:
             raise Exception("Inputs must great than two sample.")
         # difference would be the same shape as any input
-        self.diff = np.zeros_like(bottom[0].data, dtype=np.float32)
+        self.diff = np.zeros_like(bottom[0].data, dtype=np.int32)
         # layer output would be an averaged scalar loss
         top[0].reshape(1)
 
@@ -32,43 +32,51 @@ class CosineLossLayer(caffe.Layer):
         #raw_input()
         #features /= l2normal
         loss = float(0.0)
-        paires_num = 0
-        #print features[0][0]
-        for i in range(0, n):
-            f1normal = l2normal[i]            
-            while (paires_num == i):
-                paires_num = random.randint(0, n-1)
-            f2normal = l2normal[paires_num]
+        pairs = [i for i in range(n)]
+        pairs = np.array(pairs, dtype=np.int32)
+        random.shuffle(pairs)
+        pairs = pairs.reshape((-1, 2))
+        h,w = pairs.shape
+        for i in range(0, h>>1):
+            first =  pairs[i,0]
+            second = pairs[i,1]
+            f1normal = l2normal[first]
+            f2normal = l2normal[second]
             normal = f1normal * f2normal
-            f1 = features[i]# / normal
-            f2 = features[paires_num]# / normal
-            inner_product = np.abs(np.sum(features[i] * features[paires_num].T)) / normal
-            #print label[i], label[paires_num + i]
+            f1 = features[first]# / normal
+            f2 = features[second]# / normal
+            inner_product = np.abs(np.sum(features[first] * features[second].T)) / normal
             if normal == 0:
                 normal = 1
-            if label[i] == label[paires_num]:
+            if f1normal == 0:
+                f1normal = 1
+            if f2normal == 0:
+                f2normal = 1
+            if label[first] == label[second]:
                 loss_item = np.sqrt(1 - inner_product**2)
                 loss += loss_item
-                self.diff[i] = (- f2 * f1normal + f1 ** 2 / f1normal * f2) / f1normal * inner_product
-                self.diff[paires_num] = (- f1 * f2normal + f2 ** 2 / f1normal * f1) / f2normal * inner_product
+                self.diff[first] = -(- f2 * f1normal + f1 ** 2 / f1normal * f2) / f1normal * inner_product
+                self.diff[second] = (- f1 * f2normal + f2 ** 2 / f1normal * f1) / f2normal * inner_product
                 if np.abs(loss_item) > 0:
-                    self.diff[i] /= loss_item	
-                    self.diff[paires_num] /= loss_item
+                    self.diff[first] /= loss_item	
+                    self.diff[second] /= loss_item
                 #print 'same label loss: ', inner_product
             else:
                 loss_item = inner_product
                 loss += loss_item
-                self.diff[i] = (f2 * f1normal - f1 ** 2 / f1normal * f2)  / f1normal
-                self.diff[paires_num] = (f1 * f2normal - f2 ** 2 / f1normal * f1) / f1normal 
+                self.diff[first] = (f2 * f1normal - f1 ** 2 / f1normal * f2)  / f1normal
+                self.diff[second] = (f1 * f2normal - f2 ** 2 / f1normal * f1) / f1normal 
                 if np.abs(loss_item) > 0:
-                    self.diff[i] /= loss_item	
-                    self.diff[paires_num] /= loss_item			
+                    self.diff[first] /= loss_item	
+                    self.diff[second] /= loss_item			
                 #print 'different label loss: ', inner_product		
         top[0].data[...] = np.sum(loss) / n
         #index = np.where(self.diff == 0.0)[0]
         #self.diff[index] = 1e-10
         #print loss
         if np.isnan(top[0].data):
+            print 'data: ', features
+            print 'diff: ', self.diff
             raise Exception("loss is non!")
 
     def backward(self, top, propagate_down, bottom):
