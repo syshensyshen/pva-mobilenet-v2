@@ -25,14 +25,14 @@ void SyshenL1LossLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       bottom[0]->gpu_data(),
       bottom[1]->gpu_data(),
       diff_.mutable_gpu_data());    // d := b0 - b1
-  Dtype *loss;
-  CUDA_CHECK(cudaMalloc((void **)&loss, sizeof(Dtype)));
+  //Dtype *loss;
+  //CUDA_CHECK(cudaMalloc((void **)&loss, sizeof(Dtype)));
   L1Forward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
-      count, diff_.gpu_data(), loss);
+      count, diff_.gpu_data(), top[0]->mutable_gpu_data());
   CUDA_POST_KERNEL_CHECK; 
 
-  top[0]->mutable_cpu_data()[0] = *loss / bottom[0]->num();
-  CUDA_CHECK(cudaFree(loss));
+  top[0]->mutable_cpu_data()[0] /= bottom[0]->num();
+  //CUDA_CHECK(cudaFree(loss));
 }
 
 template <typename Dtype>
